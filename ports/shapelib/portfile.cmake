@@ -1,52 +1,79 @@
-include(vcpkg_common_functions)
-
-set(SHAPELIB_VERSION 1.4.1)
-set(SHAPELIB_HASH e3e02dde8006773fed25d630896e79fd79d2008a029cc86b157fe0d92c143a9fab930fdb93d9700d4e1397c3b23ae4b86e91db1dbaca1c5388d4e3aea0309341)
-set(SOURCE_PATH ${CURRENT_BUILDTREES_DIR}/src/shapelib-${SHAPELIB_VERSION})
-
 vcpkg_download_distfile(ARCHIVE
-    URLS "http://download.osgeo.org/shapelib/shapelib-${SHAPELIB_VERSION}.zip"
-    FILENAME "shapelib-${SHAPELIB_VERSION}.zip"
-    SHA512 ${SHAPELIB_HASH}
-)
-vcpkg_extract_source_archive(${ARCHIVE})
-
-vcpkg_apply_patches(
-    SOURCE_PATH ${SOURCE_PATH}
-    PATCHES ${CMAKE_CURRENT_LIST_DIR}/option-build-test.patch
+    URLS "http://download.osgeo.org/shapelib/shapelib-${VERSION}.zip"
+    FILENAME "shapelib-${VERSION}.zip"
+    SHA512 50859bbd1ea8808aa06cd112cc16cc77c1bd29d93129180818a5ea3a753b63de4039f232d1d9f13ebd7d076e427d10036e5f00775e633eb637da511625fa29bb
 )
 
-vcpkg_configure_cmake(
-    SOURCE_PATH ${SOURCE_PATH}
-    PREFER_NINJA
+vcpkg_extract_source_archive(
+    SOURCE_PATH
+    ARCHIVE "${ARCHIVE}"
+)
+
+vcpkg_check_features(OUT_FEATURE_OPTIONS options
+    FEATURES
+        contrib     BUILD_SHAPELIB_CONTRIB
+        tools       BUILD_APPS
+)
+
+vcpkg_cmake_configure(
+    SOURCE_PATH "${SOURCE_PATH}"
     OPTIONS
-        -DBUILD_TEST=OFF
+        ${options}
+        -DBUILD_TESTING=OFF
+        -DUSE_RPATH=OFF
 )
 
-vcpkg_install_cmake()
-
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug/include)
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug/share)
-
-file(GLOB EXES "${CURRENT_PACKAGES_DIR}/bin/*.exe")
-if(EXES)
-    file(COPY ${EXES} DESTINATION ${CURRENT_PACKAGES_DIR}/tools/shapelib)
-    file(REMOVE ${EXES})
-endif()
-
-file(GLOB DEBUG_EXES "${CURRENT_PACKAGES_DIR}/debug/bin/*.exe")
-if(DEBUG_EXES)
-    file(REMOVE ${DEBUG_EXES})
-endif()
-
-if(VCPKG_LIBRARY_LINKAGE STREQUAL "static")
-    file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/bin)
-    file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug/bin)
-endif()
-
-file(COPY ${SOURCE_PATH}/COPYING DESTINATION ${CURRENT_PACKAGES_DIR}/share/shapelib)
-file(RENAME ${CURRENT_PACKAGES_DIR}/share/shapelib/COPYING ${CURRENT_PACKAGES_DIR}/share/shapelib/copyright)
-
-vcpkg_copy_tool_dependencies(${CURRENT_PACKAGES_DIR}/tools/shapelib)
-
+vcpkg_cmake_install()
 vcpkg_copy_pdbs()
+vcpkg_cmake_config_fixup()
+vcpkg_fixup_pkgconfig()
+
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/include")
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/share")
+
+if(BUILD_APPS)
+    vcpkg_copy_tools(
+        TOOL_NAMES
+            dbfadd
+            dbfcreate
+            dbfdump
+            shpadd
+            shpcreate
+            shpdump
+            shprewind
+            shptreedump
+        AUTO_CLEAN
+    )
+endif()
+if(BUILD_SHAPELIB_CONTRIB)
+    vcpkg_copy_tools(
+        TOOL_NAMES
+            csv2shp
+            dbfcat
+            dbfinfo
+            Shape_PointInPoly
+            shpcat
+            shpcentrd
+            shpdata
+            shpdxf
+            shpfix
+            shpinfo
+            shpsort
+            shpwkb
+        AUTO_CLEAN
+    )
+endif()
+
+vcpkg_install_copyright(
+    FILE_LIST "${SOURCE_PATH}/LICENSE-LGPL" "${SOURCE_PATH}/LICENSE-MIT"
+    # Cf. web/license.html
+    COMMENT [[
+The core portions of the library are made available under two
+possible licenses. The licensee can choose to use the code under
+either the Library GNU Public License described in LICENSE-LGPL
+or under the MIT license described in LICENSE-MIT.
+
+Some auxiliary portions of Shapelib, notably some of the components
+in the contrib directory come under slightly different license restrictions.
+Check the source files that you are actually using for conditions.
+]])

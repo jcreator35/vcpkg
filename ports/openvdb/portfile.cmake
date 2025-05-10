@@ -1,66 +1,77 @@
-include(vcpkg_common_functions)
-
 vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
     REPO AcademySoftwareFoundation/openvdb
-    REF v6.0.0
-    SHA512 6b9e267fff46647b39e1e6faa12059442196c1858df1fda1515cfc375e25bc3033e2828c80e63a652509cfba386376e022cebf81ec85aaccece421b0c721529b
-    HEAD_REF master
+    REF "v${VERSION}"
+    SHA512 7ea2997afa99ed1ed23422eb8b8420c7127c913432f94043ccf559b6720bba2f6e19376e955d8d9055ab765a821749936966f6e5925b9d36febaa724d866b90a
     PATCHES
-        0001-fix-cmake-modules.patch
-        0002-add-custom-options.patch
-        0003-build-only-necessary-targets.patch
-        0004-add-necessary-head.patch
+        fix_cmake.patch
 )
 
-if (VCPKG_LIBRARY_LINKAGE STREQUAL static)
-    set(OPENVDB_STATIC ON)
-    set(OPENVDB_SHARED OFF)
-else()
-    set(OPENVDB_STATIC OFF)
-    set(OPENVDB_SHARED ON)
+file(REMOVE "${SOURCE_PATH}/cmake/FindTBB.cmake")
+file(REMOVE "${SOURCE_PATH}/cmake/FindIlmBase.cmake")
+file(REMOVE "${SOURCE_PATH}/cmake/FindBlosc.cmake")
+file(REMOVE "${SOURCE_PATH}/cmake/FindOpenEXR.cmake")
+
+string(COMPARE EQUAL "${VCPKG_LIBRARY_LINKAGE}" "static" OPENVDB_STATIC)
+string(COMPARE EQUAL "${VCPKG_LIBRARY_LINKAGE}" "dynamic" OPENVDB_SHARED)
+
+vcpkg_check_features(
+    OUT_FEATURE_OPTIONS FEATURE_OPTIONS
+    FEATURES
+        "tools" OPENVDB_BUILD_TOOLS
+        "ax"    OPENVDB_BUILD_AX
+        "nanovdb" OPENVDB_BUILD_NANOVDB
+        "nanovdb-tools" NANOVDB_BUILD_TOOLS
+)
+
+if (OPENVDB_BUILD_NANOVDB)
+    set(NANOVDB_OPTIONS
+    -DNANOVDB_USE_INTRINSICS=ON
+    -DNANOVDB_USE_CUDA=ON
+    -DNANOVDB_CUDA_KEEP_PTX=ON
+    -DNANOVDB_USE_OPENVDB=ON
+)
 endif()
 
-if ("tools" IN_LIST FEATURES)
-  if (VCPKG_LIBRARY_LINKAGE STREQUAL dynamic)
-    set(OPENVDB_BUILD_TOOLS ON)
-  else()
-    message(ERROR "Unable to build tools if static libraries are required")
-  endif()
-endif()
-
-vcpkg_configure_cmake(
-    SOURCE_PATH ${SOURCE_PATH}
-    PREFER_NINJA
+vcpkg_cmake_configure(
+    SOURCE_PATH "${SOURCE_PATH}"
     OPTIONS
         -DOPENVDB_BUILD_UNITTESTS=OFF
         -DOPENVDB_BUILD_PYTHON_MODULE=OFF
-        -DOPENVDB_ENABLE_3_ABI_COMPATIBLE=OFF
-        -DUSE_GLFW3=ON
-        -DOPENVDB_STATIC=${OPENVDB_STATIC}
-        -DOPENVDB_SHARED=${OPENVDB_SHARED}
-        -DOPENVDB_BUILD_TOOLS=${OPENVDB_BUILD_TOOLS}
+        -DOPENVDB_3_ABI_COMPATIBLE=OFF
+        -DUSE_EXR=ON
+        -DUSE_IMATH_HALF=ON
+        -DOPENVDB_CORE_STATIC=${OPENVDB_STATIC}
+        -DOPENVDB_CORE_SHARED=${OPENVDB_SHARED}
+        -DOPENVDB_BUILD_VDB_PRINT=${OPENVDB_BUILD_TOOLS}
+        -DOPENVDB_BUILD_VDB_VIEW=${OPENVDB_BUILD_TOOLS}
+        -DOPENVDB_BUILD_VDB_RENDER=${OPENVDB_BUILD_TOOLS}
+        -DOPENVDB_BUILD_VDB_LOD=${OPENVDB_BUILD_TOOLS}
+        -DUSE_PKGCONFIG=OFF
+        ${FEATURE_OPTIONS}
+        -DUSE_EXPLICIT_INSTANTIATION=OFF
+        ${NANOVDB_OPTIONS}
+    MAYBE_UNUSED_VARIABLES
+        OPENVDB_3_ABI_COMPATIBLE
+        OPENVDB_BUILD_TOOLS
 )
 
-vcpkg_install_cmake()
+vcpkg_cmake_install()
+
+vcpkg_cmake_config_fixup(CONFIG_PATH lib/cmake/OpenVDB)
 
 vcpkg_copy_pdbs()
 
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug/include)
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/include" "${CURRENT_PACKAGES_DIR}/debug/share")
 
 if (OPENVDB_BUILD_TOOLS)
-    # copy tools to tools/openvdb directory
-    file(MAKE_DIRECTORY ${CURRENT_PACKAGES_DIR}/tools/${PORT}/)
-    file(RENAME ${CURRENT_PACKAGES_DIR}/bin/vdb_print.exe ${CURRENT_PACKAGES_DIR}/tools/${PORT}/vdb_print.exe)
-    file(RENAME ${CURRENT_PACKAGES_DIR}/bin/vdb_render.exe ${CURRENT_PACKAGES_DIR}/tools/${PORT}/vdb_render.exe)
-    file(RENAME ${CURRENT_PACKAGES_DIR}/bin/vdb_view.exe ${CURRENT_PACKAGES_DIR}/tools/${PORT}/vdb_view.exe)
-    vcpkg_copy_tool_dependencies(${CURRENT_PACKAGES_DIR}/tools/${PORT})
-
-    # remove debug versions of tools
-    file(REMOVE ${CURRENT_PACKAGES_DIR}/debug/bin/vdb_render.exe)
-    file(REMOVE ${CURRENT_PACKAGES_DIR}/debug/bin/vdb_print.exe)
-    file(REMOVE ${CURRENT_PACKAGES_DIR}/debug/bin/vdb_view.exe)
+    vcpkg_copy_tools(TOOL_NAMES vdb_print vdb_render vdb_view vdb_lod AUTO_CLEAN)
 endif()
 
-# Handle copyright
-file(INSTALL ${SOURCE_PATH}/openvdb/COPYRIGHT DESTINATION ${CURRENT_PACKAGES_DIR}/share/openvdb RENAME copyright)
+if (NANOVDB_BUILD_TOOLS)
+    vcpkg_copy_tools(TOOL_NAMES nanovdb_convert nanovdb_print nanovdb_validate AUTO_CLEAN)
+endif()
+
+configure_file("${CMAKE_CURRENT_LIST_DIR}/vcpkg-cmake-wrapper.cmake.in" "${CURRENT_PACKAGES_DIR}/share/${PORT}/vcpkg-cmake-wrapper.cmake" @ONLY)
+file(INSTALL "${CMAKE_CURRENT_LIST_DIR}/usage" DESTINATION "${CURRENT_PACKAGES_DIR}/share/${PORT}")
+vcpkg_install_copyright(FILE_LIST "${SOURCE_PATH}/openvdb/openvdb/COPYRIGHT")

@@ -1,33 +1,25 @@
 # header-only library
 
-include(vcpkg_common_functions)
-
 vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
-    REPO QuantStack/xtensor
-    REF 0.20.5
-    SHA512 038f6858bea33a0b6e3b6622c9bbb316864335f7190ef64455ec0a062c13bcafcf215c089bbdf1f72acca63c50ceb2f1d11eb4874d82a5bfff3eead10cbfc00c
+    REPO xtensor-stack/xtensor
+    REF "${VERSION}"
+    SHA512 9fe07376ef05d9822ffedba2804ef8af402e6560ca1424624bbfb220ef954b4f721d09c22dc045a76134a5856eccf97bfbe08450e5e70c58128583c9352afb5e
     HEAD_REF master
+    PATCHES
+        fix-find-tbb-and-install-destination.patch
+        fix-find-xsimd.patch
 )
 
-if("xsimd" IN_LIST FEATURES)
-    set(XTENSOR_USE_XSIMD ON)
-else()
-    set(XTENSOR_USE_XSIMD OFF)
-endif()
+vcpkg_check_features(OUT_FEATURE_OPTIONS FEATURE_OPTIONS
+    FEATURES
+        xsimd XTENSOR_USE_XSIMD
+        tbb XTENSOR_USE_TBB
+)
 
-if("tbb" IN_LIST FEATURES)
-    set(XTENSOR_USE_TBB ON)
-else()
-    set(XTENSOR_USE_TBB OFF)
-endif()
-
-vcpkg_configure_cmake(
-    SOURCE_PATH ${SOURCE_PATH}
-    PREFER_NINJA
+vcpkg_cmake_configure(
+    SOURCE_PATH "${SOURCE_PATH}"
     OPTIONS
-        -DXTENSOR_USE_XSIMD=${XTENSOR_USE_XSIMD}
-        -DXTENSOR_USE_TBB=${XTENSOR_USE_TBB}
         -DXTENSOR_ENABLE_ASSERT=OFF
         -DXTENSOR_CHECK_DIMENSION=OFF
         -DBUILD_TESTS=OFF
@@ -36,16 +28,13 @@ vcpkg_configure_cmake(
         -DDOWNLOAD_GBENCHMARK=OFF
         -DDEFAULT_COLUMN_MAJOR=OFF
         -DDISABLE_VS2017=OFF
+        ${FEATURE_OPTIONS}
 )
 
-vcpkg_install_cmake()
+vcpkg_cmake_install()
 
-vcpkg_fixup_cmake_targets(CONFIG_PATH lib/cmake/${PORT})
+vcpkg_cmake_config_fixup(CONFIG_PATH lib/cmake/${PORT})
 
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug ${CURRENT_PACKAGES_DIR}/lib)
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug" "${CURRENT_PACKAGES_DIR}/lib")
 
-# Handle copyright
-configure_file(${SOURCE_PATH}/LICENSE ${CURRENT_PACKAGES_DIR}/share/${PORT}/copyright COPYONLY)
-
-# CMake integration test
-vcpkg_test_cmake(PACKAGE_NAME ${PORT})
+vcpkg_install_copyright(FILE_LIST "${SOURCE_PATH}/LICENSE")

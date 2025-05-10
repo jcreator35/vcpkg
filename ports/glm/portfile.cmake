@@ -1,31 +1,27 @@
-include(vcpkg_common_functions)
+vcpkg_check_linkage(ONLY_STATIC_LIBRARY)
 
 vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
     REPO g-truc/glm
-    REF 0.9.9.5
-    SHA512 3b329acf5144aab1c0f47f8045d34e097699bd6685118ad8322c5ce23afdcb44ba2bb07e49301db06355b8eef7d4340b72251d55e113b533740d1e6ef6609911
+    REF "${VERSION}"
+    SHA512 c6c6fa1ea7a7e97820e36ee042a78be248ae828c99c1b1111080d9bf334a5160c9993a70312351c92a867cd49907c95f9f357c8dfe2bc29946da6e83e27ba20c
     HEAD_REF master
+    PATCHES
+        fix-clang.patch # Backport https://github.com/g-truc/glm/pull/1286. Remove with next update.
 )
 
-vcpkg_apply_patches(
-    SOURCE_PATH ${SOURCE_PATH}
-    PATCHES "${CMAKE_CURRENT_LIST_DIR}/disable_warnings_as_error.patch"
+vcpkg_cmake_configure(
+    SOURCE_PATH "${SOURCE_PATH}"
+    OPTIONS
+        -DGLM_BUILD_LIBRARY=ON
+        -DGLM_BUILD_TESTS=OFF
+        -DGLM_BUILD_INSTALL=ON
 )
 
-vcpkg_configure_cmake(
-    SOURCE_PATH ${SOURCE_PATH}
-)
+vcpkg_cmake_install()
+vcpkg_cmake_config_fixup()
 
-vcpkg_install_cmake()
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/include")
 
-vcpkg_fixup_cmake_targets(CONFIG_PATH "lib/cmake/glm")
-
-vcpkg_copy_pdbs()
-
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug/include)
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug/share)
-
-# Put the license file where vcpkg expects it
-file(COPY ${SOURCE_PATH}/manual.md DESTINATION ${CURRENT_PACKAGES_DIR}/share/glm/)
-file(RENAME ${CURRENT_PACKAGES_DIR}/share/glm/manual.md ${CURRENT_PACKAGES_DIR}/share/glm/copyright)
+vcpkg_install_copyright(FILE_LIST "${SOURCE_PATH}/copying.txt")
+file(INSTALL "${CMAKE_CURRENT_LIST_DIR}/usage" DESTINATION "${CURRENT_PACKAGES_DIR}/share/${PORT}")

@@ -1,31 +1,40 @@
-include(vcpkg_common_functions)
-
-vcpkg_check_linkage(ONLY_DYNAMIC_LIBRARY ONLY_DYNAMIC_CRT)
-
 vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
     REPO artyom-beilis/cppcms
-    REF v1.1.0
-	SHA512 cfc77f28ddee05b8a350fff1dbd7c09adcf008b8662d4f977b203dee50b5fadae97df499a655ebb48263a7448e0bdca514c8ac52ea805bf33e48612dabaa69f4
+    REF b72b19915794d1af63c9a9e9bea58e20a4ad93d4
+    SHA512 e99d34d14fbde22be725ac2c0bec069fb584e45c66767af75efaf454ca61a7a5e57434bf86109f910884c72202b8cf98fe16505e7d3d30d9218abd4d8b27d5df
+    PATCHES
+        dependencies.diff
+        dllexport.diff
+        no-tests-and-examples.patch
+        fix_narrowing_error.patch
 )
 
-vcpkg_find_acquire_program(PYTHON2)
-get_filename_component(PYTHON2_DIR ${PYTHON2} DIRECTORY)
+string(COMPARE EQUAL "${VCPKG_LIBRARY_LINKAGE}" "static" DISABLE_SHARED)
+string(COMPARE EQUAL "${VCPKG_LIBRARY_LINKAGE}" "dynamic" DISABLE_STATIC)
 
-vcpkg_configure_cmake(
-    SOURCE_PATH ${SOURCE_PATH}
-    PREFER_NINJA
-	OPTIONS -DCMAKE_PROGRAM_PATH=${PYTHON2_DIR} -DUSE_WINDOWS6_API=ON
+vcpkg_cmake_configure(
+    SOURCE_PATH "${SOURCE_PATH}"
+    OPTIONS
+        -DCMAKE_CXX_STANDARD=11
+        -DPYTHON=:
+        -DUSE_WINDOWS6_API=ON
+        -DDISABLE_SHARED=${DISABLE_SHARED}
+        -DDISABLE_STATIC=${DISABLE_STATIC}
+        -DDISABLE_GCRYPT=ON
+        -DDISABLE_ICONV=ON
 )
 
-vcpkg_install_cmake()
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug/include)
+vcpkg_cmake_install()
+vcpkg_copy_pdbs()
 
-file(GLOB EXE_DEBUG_FILES ${CURRENT_PACKAGES_DIR}/debug/bin/*.exe)
-file(REMOVE ${EXE_DEBUG_FILES})
-file(GLOB EXE_FILES ${CURRENT_PACKAGES_DIR}/bin/*.exe)
-file(REMOVE ${EXE_FILES})
+file(MAKE_DIRECTORY "${CURRENT_PACKAGES_DIR}/tools/${PORT}")
+foreach(script IN ITEMS cppcms_tmpl_cc cppcms_run)
+    file(RENAME "${CURRENT_PACKAGES_DIR}/bin/${script}" "${CURRENT_PACKAGES_DIR}/tools/${PORT}/${script}")
+    file(REMOVE "${CURRENT_PACKAGES_DIR}/debug/bin/${script}")
+endforeach()
+vcpkg_copy_tools(TOOL_NAMES cppcms_scale cppcms_make_key cppcms_config_find_param AUTO_CLEAN)
 
-# Handle copyright
-file(COPY ${SOURCE_PATH}/LGPLv3.txt DESTINATION ${CURRENT_PACKAGES_DIR}/share/cppcms)
-file(RENAME ${CURRENT_PACKAGES_DIR}/share/cppcms/LGPLv3.txt ${CURRENT_PACKAGES_DIR}/share/cppcms/copyright)
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/include")
+
+vcpkg_install_copyright(FILE_LIST "${SOURCE_PATH}/MIT.TXT" "${SOURCE_PATH}/THIRD_PARTY_SOFTWARE.TXT")

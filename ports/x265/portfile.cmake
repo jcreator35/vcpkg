@@ -1,58 +1,65 @@
-include(vcpkg_common_functions)
-
 vcpkg_from_bitbucket(
     OUT_SOURCE_PATH SOURCE_PATH
-    REPO multicoreware/x265
-    REF 3.0
-    SHA512 698fd31bf30c65896717225de69714523bcbd3d835474f777bf32c3a6d6dbbf941a09db076e13e76917a5ca014c89fca924fcb0ea3d15bc09748b6fc834a4ba2
+    REPO multicoreware/x265_git
+    REF "${VERSION}"
+    SHA512 4b7d71f22f0a7f12ff93f9a01e361df2b80532cd8dac01b5465e63b5d8182f1a05c0289ad95f3aa972c963aa6cd90cb3d594f8b9a96f556a006cf7e1bdd9edda
     HEAD_REF master
+    PATCHES
+        disable-install-pdb.patch
+        version.patch
+        linkage.diff
+        pkgconfig.diff
+        pthread.diff
+        compiler-target.diff
+        neon.diff
 )
 
-vcpkg_apply_patches(
-    SOURCE_PATH ${SOURCE_PATH}
-    PATCHES ${CMAKE_CURRENT_LIST_DIR}/disable-install-pdb.patch
+vcpkg_check_features(OUT_FEATURE_OPTIONS OPTIONS
+    FEATURES
+        tool   ENABLE_CLI
 )
 
-set(ENABLE_ASSEMBLY OFF)
-if (WIN32)
+if(VCPKG_TARGET_ARCHITECTURE STREQUAL "x86" OR VCPKG_TARGET_ARCHITECTURE STREQUAL "x64")
     vcpkg_find_acquire_program(NASM)
-    get_filename_component(NASM_EXE_PATH ${NASM} DIRECTORY)
-    set(ENV{PATH} "$ENV{PATH};${NASM_EXE_PATH}")
-    set(ENABLE_ASSEMBLY ON)
-endif ()
+    list(APPEND OPTIONS "-DNASM_EXECUTABLE=${NASM}")
+    if(VCPKG_LIBRARY_LINKAGE STREQUAL "static" AND NOT VCPKG_TARGET_IS_WINDOWS AND NOT VCPKG_TARGET_IS_OSX)
+        # x265 doesn't create sufficient PIC for asm, breaking usage
+        # in shared libs, e.g. the libheif gdk pixbuf plugin.
+        # Users can override this in custom triplets.
+        list(APPEND OPTIONS "-DENABLE_ASSEMBLY=OFF")
+    endif()
+elseif(VCPKG_TARGET_IS_WINDOWS)
+    list(APPEND OPTIONS "-DENABLE_ASSEMBLY=OFF")
+endif()
 
 string(COMPARE EQUAL "${VCPKG_LIBRARY_LINKAGE}" "dynamic" ENABLE_SHARED)
 
-vcpkg_configure_cmake(
-    SOURCE_PATH ${SOURCE_PATH}/source
-    PREFER_NINJA
+vcpkg_cmake_configure(
+    SOURCE_PATH "${SOURCE_PATH}/source"
     OPTIONS
-        -DENABLE_ASSEMBLY=${ENABLE_ASSEMBLY}
+        ${OPTIONS}
         -DENABLE_SHARED=${ENABLE_SHARED}
+        -DENABLE_PIC=ON
+        -DENABLE_LIBNUMA=OFF
+        "-DVERSION=${VERSION}"
     OPTIONS_DEBUG
         -DENABLE_CLI=OFF
+    MAYBE_UNUSED_VARIABLES
+        ENABLE_LIBNUMA
 )
 
-vcpkg_install_cmake()
+vcpkg_cmake_install()
 vcpkg_copy_pdbs()
+vcpkg_fixup_pkgconfig()
 
-# remove duplicated include files
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug/include)
-
-file(MAKE_DIRECTORY ${CURRENT_PACKAGES_DIR}/tools/x265)
-
-if(UNIX)
-    file(RENAME ${CURRENT_PACKAGES_DIR}/bin/x265 ${CURRENT_PACKAGES_DIR}/tools/x265/x265)
-elseif(WIN32)    
-    file(RENAME ${CURRENT_PACKAGES_DIR}/bin/x265.exe ${CURRENT_PACKAGES_DIR}/tools/x265/x265.exe)
+if("tool" IN_LIST FEATURES)
+    vcpkg_copy_tools(TOOL_NAMES x265 AUTO_CLEAN)
 endif()
 
-if(VCPKG_LIBRARY_LINKAGE STREQUAL "static")
-    file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/bin)
+if(VCPKG_TARGET_IS_WINDOWS AND VCPKG_LIBRARY_LINKAGE STREQUAL "dynamic")
+    vcpkg_replace_string("${CURRENT_PACKAGES_DIR}/include/x265.h" "#ifdef X265_API_IMPORTS" "#if 1")
 endif()
 
-vcpkg_copy_tool_dependencies(${CURRENT_PACKAGES_DIR}/tools/x265)
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/include")
 
-# Handle copyright
-file(COPY ${SOURCE_PATH}/COPYING DESTINATION ${CURRENT_PACKAGES_DIR}/share/x265)
-file(RENAME ${CURRENT_PACKAGES_DIR}/share/x265/COPYING ${CURRENT_PACKAGES_DIR}/share/x265/copyright)
+vcpkg_install_copyright(FILE_LIST "${SOURCE_PATH}/COPYING")

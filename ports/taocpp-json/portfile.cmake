@@ -1,38 +1,33 @@
-# header-only library
-
-include(vcpkg_common_functions)
+set(VCPKG_BUILD_TYPE release) # header-only
 
 vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
     REPO taocpp/json
-    REF 8520fca2a054be775e406eaec66f33f02a7076e3
-    SHA512 44bfd0252ed42d2619ca65e92d0f483895fd735b98a81e7f844526f78893a8624133ba356ad41f8c691571bf9f56823f62bfc0f294394e6e0f780b44a0b085fd
+    REF f357d7269b7503eed21d0c3b98b9075c28a98f56 # accessed on 2020-09-14
+    SHA512 4a4be970779ed0c6044c7ad40918ad6b3908ca10dbfb3738cbebb62154d437ad13ca27947119a6b1a6c8d92b22a9282477c73ddc5721ca30b8b355b77d7ce729
     HEAD_REF master
 )
 
-vcpkg_configure_cmake(
-    SOURCE_PATH ${SOURCE_PATH}
-    DISABLE_PARALLEL_CONFIGURE
-    PREFER_NINJA
+vcpkg_cmake_configure(
+    SOURCE_PATH "${SOURCE_PATH}"
     OPTIONS
         -DTAOCPP_JSON_BUILD_TESTS=OFF
         -DTAOCPP_JSON_BUILD_EXAMPLES=OFF
 )
 
-vcpkg_install_cmake()
+vcpkg_cmake_install()
 
-vcpkg_fixup_cmake_targets(CONFIG_PATH share/taocpp-json/cmake)
+vcpkg_cmake_config_fixup(CONFIG_PATH share/taocpp-json/cmake)
 
 file(REMOVE_RECURSE
-    ${CURRENT_PACKAGES_DIR}/debug
-    ${CURRENT_PACKAGES_DIR}/share/doc
+    "${CURRENT_PACKAGES_DIR}/debug"
+    "${CURRENT_PACKAGES_DIR}/share/doc"
 )
 
-# Handle copyright
-configure_file(${SOURCE_PATH}/LICENSE ${CURRENT_PACKAGES_DIR}/share/${PORT}/copyright COPYONLY)
-file(COPY ${SOURCE_PATH}/LICENSE.double-conversion DESTINATION ${CURRENT_PACKAGES_DIR}/share/${PORT})
-file(COPY ${SOURCE_PATH}/LICENSE.itoa DESTINATION ${CURRENT_PACKAGES_DIR}/share/${PORT})
-file(COPY ${SOURCE_PATH}/LICENSE.ryu DESTINATION ${CURRENT_PACKAGES_DIR}/share/${PORT})
-
-# CMake integration test
-vcpkg_test_cmake(PACKAGE_NAME ${PORT})
+vcpkg_install_copyright(
+    FILE_LIST
+        "${SOURCE_PATH}/LICENSE"
+        "${SOURCE_PATH}/LICENSE.double-conversion"
+        "${SOURCE_PATH}/LICENSE.itoa"
+        "${SOURCE_PATH}/LICENSE.ryu"
+)

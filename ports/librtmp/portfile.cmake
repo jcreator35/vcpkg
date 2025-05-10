@@ -1,37 +1,29 @@
-include(vcpkg_common_functions)
-
-set(RTMPDUMP_VERSION 2.4)
-set(RTMPDUMP_FILENAME rtmpdump-${RTMPDUMP_VERSION}.tar.gz)
-set(SOURCE_PATH ${CURRENT_BUILDTREES_DIR}/src/rtmpdump)
-
-vcpkg_download_distfile(ARCHIVE
-    URLS "http://rtmpdump.mplayerhq.hu/download/${RTMPDUMP_FILENAME}"
-    FILENAME "${RTMPDUMP_FILENAME}"
-    SHA512 a6253af95492739366dce620a2a6cc6f4f18d7f12f9ef2c747240259066ca135beeb02091d0f3dd8380c0c294a30d3f702ad3fad1dee1db4e70473078fb81609
-)
-vcpkg_extract_source_archive(${ARCHIVE})
-
-file(COPY ${CMAKE_CURRENT_LIST_DIR}/CMakeLists.txt DESTINATION ${SOURCE_PATH})
-file(COPY ${CMAKE_CURRENT_LIST_DIR}/librtmp.def DESTINATION ${SOURCE_PATH}/librtmp)
-
-vcpkg_apply_patches(
-    SOURCE_PATH ${SOURCE_PATH}
+vcpkg_from_github(
+    OUT_SOURCE_PATH SOURCE_PATH
+    REPO mirror/rtmpdump
+    REF 6f6bb1353fc84f4cc37138baa99f586750028a01
+    SHA512 e6c108576fdd3430d81e2f72b343864eee5d6be396c9378a2ae2bfc871e9464e20d7bd057a47ef2449a301d933b29265e7ffd3383631b24fc035f5483337bbce
     PATCHES
-        ${CMAKE_CURRENT_LIST_DIR}/fix_strncasecmp.patch
-        ${CMAKE_CURRENT_LIST_DIR}/hide_netstackdump.patch
+        fix_strncasecmp.patch
+        hide_netstackdump.patch
+        pkgconfig.patch
 )
 
-vcpkg_configure_cmake(
-    SOURCE_PATH ${SOURCE_PATH}
-    PREFER_NINJA
+file(COPY "${CMAKE_CURRENT_LIST_DIR}/CMakeLists.txt" DESTINATION "${SOURCE_PATH}")
+file(COPY "${CMAKE_CURRENT_LIST_DIR}/librtmp.def" DESTINATION "${SOURCE_PATH}/librtmp")
+
+vcpkg_cmake_configure(
+    SOURCE_PATH "${SOURCE_PATH}"
 )
 
-vcpkg_install_cmake()
+vcpkg_cmake_install()
+vcpkg_fixup_pkgconfig()
 
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug/include)
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/include")
 
 # License and man
-file(INSTALL ${SOURCE_PATH}/librtmp/COPYING DESTINATION ${CURRENT_PACKAGES_DIR}/share/librtmp RENAME copyright)
-file(INSTALL ${SOURCE_PATH}/librtmp/librtmp.3.html DESTINATION ${CURRENT_PACKAGES_DIR}/share/librtmp)
+file(INSTALL "${SOURCE_PATH}/librtmp/COPYING" DESTINATION "${CURRENT_PACKAGES_DIR}/share/${PORT}" RENAME copyright)
+file(COPY "${CURRENT_PORT_DIR}/usage" DESTINATION "${CURRENT_PACKAGES_DIR}/share/${PORT}")
+file(INSTALL "${SOURCE_PATH}/librtmp/librtmp.3.html" DESTINATION "${CURRENT_PACKAGES_DIR}/share/${PORT}")
 
 vcpkg_copy_pdbs()

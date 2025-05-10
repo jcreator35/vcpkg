@@ -1,41 +1,34 @@
-include(vcpkg_common_functions)
 vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
     REPO open-source-parsers/jsoncpp
-    REF 1.8.4
-    SHA512 f70361a3263dd8b9441374a9a409462be1426c0d6587c865171a80448ab73b3f69de2b4d70d2f0c541764e1e6cccc727dd53178347901f625ec6fb54fb94f4f1
+    REF "${VERSION}"
+    SHA512 006d81f9f723dcfe875ebc2147449c07c5246bf97dd7b9eee1909decc914b051d6f3f06feb5c3dfa143d28773fb310aabb04a81dc447cc61513309df8eba8b08
     HEAD_REF master
 )
 
-if (VCPKG_LIBRARY_LINKAGE STREQUAL dynamic)
-    set(JSONCPP_STATIC OFF)
-    set(JSONCPP_DYNAMIC ON)
-else()
-    set(JSONCPP_STATIC ON)
-    set(JSONCPP_DYNAMIC OFF)
-endif()
+string(COMPARE EQUAL "${VCPKG_LIBRARY_LINKAGE}" "static" JSONCPP_STATIC)
+string(COMPARE EQUAL "${VCPKG_CRT_LINKAGE}" "static" STATIC_CRT)
 
-vcpkg_configure_cmake(
-    SOURCE_PATH ${SOURCE_PATH}
-    PREFER_NINJA
-    DISABLE_PARALLEL_CONFIGURE
-    OPTIONS -DJSONCPP_WITH_CMAKE_PACKAGE:BOOL=ON
-            -DBUILD_STATIC_LIBS:BOOL=${JSONCPP_STATIC}
-            -DJSONCPP_WITH_PKGCONFIG_SUPPORT:BOOL=OFF
-            -DJSONCPP_WITH_TESTS:BOOL=OFF
+vcpkg_cmake_configure(
+    SOURCE_PATH "${SOURCE_PATH}"
+    OPTIONS 
+        -DJSONCPP_WITH_CMAKE_PACKAGE=ON
+        -DBUILD_STATIC_LIBS=${JSONCPP_STATIC}
+        -DJSONCPP_STATIC_WINDOWS_RUNTIME=${STATIC_CRT}
+        -DJSONCPP_WITH_PKGCONFIG_SUPPORT=ON
+        -DJSONCPP_WITH_POST_BUILD_UNITTEST=OFF
+        -DJSONCPP_WITH_TESTS=OFF
+        -DJSONCPP_WITH_EXAMPLE=OFF
+        -DBUILD_OBJECT_LIBS=OFF
 )
 
-vcpkg_install_cmake()
+vcpkg_cmake_install()
 
-# Fix CMake files
-vcpkg_fixup_cmake_targets(CONFIG_PATH lib/cmake/jsoncpp)
+vcpkg_cmake_config_fixup(CONFIG_PATH lib/cmake/jsoncpp)
 
-# Remove includes in debug
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug/include)
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/include")
 
-# Handle copyright
-file(COPY ${SOURCE_PATH}/LICENSE DESTINATION ${CURRENT_PACKAGES_DIR}/share/jsoncpp)
-file(RENAME ${CURRENT_PACKAGES_DIR}/share/jsoncpp/LICENSE ${CURRENT_PACKAGES_DIR}/share/jsoncpp/copyright)
-
-# Copy pdb files
 vcpkg_copy_pdbs()
+vcpkg_fixup_pkgconfig()
+
+vcpkg_install_copyright(FILE_LIST "${SOURCE_PATH}/LICENSE")

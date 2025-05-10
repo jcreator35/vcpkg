@@ -1,5 +1,10 @@
-include(vcpkg_common_functions)
+include("${CURRENT_INSTALLED_DIR}/share/qt5/qt_port_functions.cmake")
 
-include(${CURRENT_INSTALLED_DIR}/share/qt5modularscripts/qt_modular_library.cmake)
+set(OPTIONS -system-assimp)
 
-qt_modular_library(qt3d 679c2dbc60fc53c1c5469369f25244bd844c2e6e723a1b451f7cbb50bfa018e6fb715214e5a5df6fb32d7c7936bb6c99d85e299fe2b76344bcf774c93ed0acd0)
+x_vcpkg_pkgconfig_get_modules(PREFIX assimp MODULES assimp LIBS)
+
+set(OPT_REL "ASSIMP_LIBS=${assimp_LIBS_RELEASE}")
+set(OPT_DBG "ASSIMP_LIBS=${assimp_LIBS_DEBUG}")
+
+qt_submodule_installation(BUILD_OPTIONS ${OPTIONS} BUILD_OPTIONS_RELEASE ${OPT_REL} BUILD_OPTIONS_DEBUG ${OPT_DBG})

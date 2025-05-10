@@ -1,66 +1,51 @@
-include(vcpkg_common_functions)
-
-set(LIBGEOTIFF_VERSION 1.4.2)
-set(LIBGEOTIFF_HASH 059c6e05eb0c47f17b102c7217a2e1636e76d622c4d1bdcf0bd89fb3505f3130bffa881e21c73cfd2ca0d6863b81322f85784658ba3539b53b63c3a8f38d1deb)
-
-vcpkg_download_distfile(ARCHIVE
-    URLS "http://download.osgeo.org/geotiff/libgeotiff/libgeotiff-${LIBGEOTIFF_VERSION}.tar.gz"
-    FILENAME "libgeotiff-${LIBGEOTIFF_VERSION}.tar.gz"
-    SHA512 ${LIBGEOTIFF_HASH}
-)
-
-vcpkg_extract_source_archive_ex(
+vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
-    ARCHIVE ${ARCHIVE}
-    REF ${LIBGEOTIFF_VERSION}
+    REPO OSGeo/libgeotiff
+    REF  ${VERSION}
+    SHA512 03468e8eeaf97d82798bf341cf2e27753eb47af985fb08fc6176be799bd0e1e879c6d1701577f7568f269cbef0bb0a20ae460bb943f847daf49aa54601441683
+    HEAD_REF master
     PATCHES
-        0001-Updates-to-CMake-configuration-to-align-with-other-C.patch
-        0002-Fix-directory-output.patch
-        0004-Fix-libxtiff-installation.patch
-        0005-Control-shared-library-build-with-option.patch
-        0006-Fix-utility-link-error.patch
+        cmakelists.patch
 )
 
-# Delete FindPROJ4.cmake
-file(REMOVE ${SOURCE_PATH}/cmake/FindPROJ4.cmake)
+vcpkg_check_features(OUT_FEATURE_OPTIONS FEATURE_OPTIONS
+    FEATURES
+       tools    WITH_JPEG
+       tools    WITH_UTILITIES 
+)
 
-vcpkg_configure_cmake(
-    SOURCE_PATH ${SOURCE_PATH}
-    PREFER_NINJA
+vcpkg_cmake_configure(
+    SOURCE_PATH "${SOURCE_PATH}/libgeotiff"
     OPTIONS
-        -DWITH_TIFF=ON
-        -DWITH_PROJ4=ON
-        -DWITH_ZLIB=ON
-        -DWITH_JPEG=ON
-    OPTIONS_RELEASE -DWITH_UTILITIES=ON
-    OPTIONS_DEBUG   -DWITH_UTILITIES=OFF
+        -DWITH_TIFF=1
+        -DHAVE_TIFFOPEN=1
+        -DHAVE_TIFFMERGEFIELDINFO=1
+        -DCMAKE_MACOSX_BUNDLE=0
+        -DCMAKE_INSTALL_MANDIR=share/unused
+        -DCMAKE_INSTALL_DOCDIR=share/unused
+        ${FEATURE_OPTIONS}
 )
 
-vcpkg_install_cmake()
+vcpkg_cmake_install()
 
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug/include ${CURRENT_PACKAGES_DIR}/debug/share)
-configure_file(${SOURCE_PATH}/COPYING ${CURRENT_PACKAGES_DIR}/share/libgeotiff/copyright COPYONLY)
-
-if(VCPKG_CMAKE_SYSTEM_NAME AND NOT VCPKG_CMAKE_SYSTEM_NAME STREQUAL "WindowsStore")
-    file(GLOB GEOTIFF_UTILS ${CURRENT_PACKAGES_DIR}/bin/*)
-else()
-    file(GLOB GEOTIFF_UTILS ${CURRENT_PACKAGES_DIR}/bin/*.exe)
+if(WITH_UTILITIES)
+    vcpkg_copy_tools(TOOL_NAMES applygeo geotifcp listgeo makegeo AUTO_CLEAN)
 endif()
-
-file(COPY ${GEOTIFF_UTILS} DESTINATION ${CURRENT_PACKAGES_DIR}/tools/libgeotiff)
-vcpkg_copy_tool_dependencies(${CURRENT_PACKAGES_DIR}/tools/libgeotiff)
-
-file(GLOB EXES ${CURRENT_PACKAGES_DIR}/bin/*.exe ${CURRENT_PACKAGES_DIR}/debug/bin/*.exe)
-if(EXES)
-    file(REMOVE ${EXES})
-endif()
-
-if(VCPKG_LIBRARY_LINKAGE STREQUAL "static" OR (VCPKG_CMAKE_SYSTEM_NAME AND NOT VCPKG_CMAKE_SYSTEM_NAME STREQUAL "WindowsStore"))
-    file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug/bin ${CURRENT_PACKAGES_DIR}/bin)
-endif()
-
-# Move and cleanup doc files
-file(RENAME ${CURRENT_PACKAGES_DIR}/doc ${CURRENT_PACKAGES_DIR}/share/libgeotiff/doc) 
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug/doc) 
 
 vcpkg_copy_pdbs()
+vcpkg_cmake_config_fixup(PACKAGE_NAME geotiff)
+vcpkg_fixup_pkgconfig()
+
+if(VCPKG_LIBRARY_LINKAGE STREQUAL "static")
+    file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/bin" "${CURRENT_PACKAGES_DIR}/bin")
+endif()
+
+file(REMOVE_RECURSE
+    "${CURRENT_PACKAGES_DIR}/debug/include"
+    "${CURRENT_PACKAGES_DIR}/debug/share"
+    "${CURRENT_PACKAGES_DIR}/share/unused"
+)
+
+file(INSTALL "${CMAKE_CURRENT_LIST_DIR}/usage" DESTINATION "${CURRENT_PACKAGES_DIR}/share/${PORT}")
+
+vcpkg_install_copyright(FILE_LIST "${SOURCE_PATH}/libgeotiff/LICENSE")

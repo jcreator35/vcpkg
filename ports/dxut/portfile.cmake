@@ -1,51 +1,29 @@
-include(vcpkg_common_functions)
-
 vcpkg_check_linkage(ONLY_STATIC_LIBRARY)
 
-if(NOT VCPKG_CRT_LINKAGE STREQUAL "dynamic")
-  message(FATAL_ERROR "DXUT only supports dynamic CRT linkage")
-endif()
-
-set(SOURCE_PATH ${CURRENT_BUILDTREES_DIR}/src/DXUT-sept2016)
-vcpkg_download_distfile(ARCHIVE_FILE
-    URLS "https://github.com/Microsoft/DXUT/archive/sept2016.tar.gz"
-    FILENAME "DXUT-sept2016.tar.gz"
-    SHA512 190006c194284a1f5d614477896b0469a59ece05dff37477dadbe98808a5c33e274c0c1bb1390f22d1b5e06c9f534f4b50d6002157b2a391e01c2192b8e08869
-)
-vcpkg_extract_source_archive(${ARCHIVE_FILE})
-
-IF (TRIPLET_SYSTEM_ARCH MATCHES "x86")
-	SET(BUILD_ARCH "Win32")
-ELSE()
-	SET(BUILD_ARCH ${TRIPLET_SYSTEM_ARCH})
-ENDIF()
-
-vcpkg_build_msbuild(
-    PROJECT_PATH ${SOURCE_PATH}/DXUT_2015.sln
-	PLATFORM ${BUILD_ARCH}
+vcpkg_from_github(
+    OUT_SOURCE_PATH SOURCE_PATH
+    REPO microsoft/DXUT
+    REF aug2024
+    SHA512 9ae3ff34308446b9d145306c4eee6a70319c103540e76e3df305bed6b9d4348b508976d930fbbaac29d560879afc5e53367bdd81142a02920dd28c4fc9013136
+    HEAD_REF main
 )
 
-file(INSTALL
-	${SOURCE_PATH}/Core/
-	${SOURCE_PATH}/Optional/
-    DESTINATION ${CURRENT_PACKAGES_DIR}/include
-	FILES_MATCHING PATTERN "*.h"
+vcpkg_check_features(
+    OUT_FEATURE_OPTIONS FEATURE_OPTIONS
+    FEATURES
+        dxtk DIRECTXTK_INTEGRATION
+        spectre ENABLE_SPECTRE_MITIGATION
 )
-file(REMOVE_RECURSE
-	${CURRENT_PACKAGES_DIR}/include/Bin)
 
-file(INSTALL
-	${SOURCE_PATH}/Core/Bin/Desktop_2015/${BUILD_ARCH}/Release/DXUT.lib
-	${SOURCE_PATH}/Optional/Bin/Desktop_2015/${BUILD_ARCH}/Release/DXUTOpt.lib
-	DESTINATION ${CURRENT_PACKAGES_DIR}/lib)
+vcpkg_cmake_configure(
+    SOURCE_PATH ${SOURCE_PATH}
+    OPTIONS ${FEATURE_OPTIONS}
+)
 
-file(INSTALL
-	${SOURCE_PATH}/Core/Bin/Desktop_2015/${BUILD_ARCH}/Debug/DXUT.lib
-	${SOURCE_PATH}/Optional/Bin/Desktop_2015/${BUILD_ARCH}/Debug/DXUTOpt.lib
-	DESTINATION ${CURRENT_PACKAGES_DIR}/debug/lib)
+vcpkg_cmake_install()
+vcpkg_cmake_config_fixup(CONFIG_PATH share/dxut)
 
-vcpkg_copy_pdbs()
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/include")
 
-file(INSTALL ${SOURCE_PATH}/MIT.txt DESTINATION ${CURRENT_PACKAGES_DIR}/share/dxut RENAME copyright)
-
-message(STATUS "Installing done")
+file(INSTALL "${CMAKE_CURRENT_LIST_DIR}/usage" DESTINATION "${CURRENT_PACKAGES_DIR}/share/${PORT}")
+vcpkg_install_copyright(FILE_LIST "${SOURCE_PATH}/LICENSE")

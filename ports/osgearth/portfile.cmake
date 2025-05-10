@@ -1,72 +1,61 @@
-include(vcpkg_common_functions)
-
-vcpkg_check_linkage(ONLY_DYNAMIC_LIBRARY ONLY_DYNAMIC_CRT)
-
-file(GLOB OSG_PLUGINS_SUBDIR ${CURRENT_INSTALLED_DIR}/tools/osg/osgPlugins-*)
-list(LENGTH OSG_PLUGINS_SUBDIR OSG_PLUGINS_SUBDIR_LENGTH)
-if(NOT OSG_PLUGINS_SUBDIR_LENGTH EQUAL 1)
-    message(FATAL_ERROR "Could not determine osg version")
-endif()
-string(REPLACE "${CURRENT_INSTALLED_DIR}/tools/osg/" "" OSG_PLUGINS_SUBDIR "${OSG_PLUGINS_SUBDIR}")
-
-vcpkg_download_distfile(
-    VS2017PATCH
-    URLS "https://github.com/remoe/osgearth/commit/f7081cc4f9991c955c6a0ef7b7b50e48360d14fd.diff"
-    FILENAME "osgearth-f7081cc4f9991c955c6a0ef7b7b50e48360d14fd.patch"
-    SHA512 eadb47a5713c00c05add8627e5cad22844db041da34081d59104151a1a1e2d5ac9552909d67171bfc0449a3e4d2930dd3a7914d3ec7ef7ff1015574e9c9a6105
-)
-
 vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
     REPO gwaldron/osgearth
-    REF osgearth-2.10
-    SHA512 ba742f4fc8dbbdaee65e413d477b713cad8da313a1dc68327997359aca88dadc871b03ad4b09172e3e048164989c2797108db67f14edff8ee5a0c63a8fe1bb0c
+    REF "osgearth-${VERSION}"
+    SHA512 4a2b80c907ebf2b56966598f9e134ad910d3271757496fb1d906cc413eb2ad09da366a96635f0195696efe16ef1a649e13b6ec1d901a39ced0465be797f14221
     HEAD_REF master
-    PATCHES ${VS2017PATCH}
 )
 
-vcpkg_configure_cmake(
-    SOURCE_PATH ${SOURCE_PATH}
-    PREFER_NINJA
+string(COMPARE EQUAL "${VCPKG_LIBRARY_LINKAGE}" "dynamic" BUILD_SHARED)
+
+vcpkg_check_features(OUT_FEATURE_OPTIONS FEATURE_OPTIONS
+    FEATURES
+        controls OSGEARTH_BUILD_LEGACY_CONTROLS_API
+        tools OSGEARTH_BUILD_TOOLS
 )
 
-vcpkg_install_cmake()
+vcpkg_cmake_configure(
+    SOURCE_PATH "${SOURCE_PATH}"
+    OPTIONS
+        ${FEATURE_OPTIONS}
+        -DOSGEARTH_BUILD_SHARED_LIBS=${BUILD_SHARED}
+        -DOSGEARTH_BUILD_EXAMPLES=OFF
+        -DOSGEARTH_BUILD_TESTS=OFF
+        -DOSGEARTH_BUILD_DOCS=OFF
+        -DOSGEARTH_BUILD_PROCEDURAL_NODEKIT=OFF
+        -DOSGEARTH_BUILD_TRITON_NODEKIT=OFF
+        -DOSGEARTH_BUILD_SILVERLINING_NODEKIT=OFF
+        -DOSGEARTH_BUILD_ZIP_PLUGIN=OFF
+        -DBUILDING_VCPKG_PORT=ON
+        -DCMAKE_JOB_POOL_LINK=console # Serialize linking to avoid OOM
+    OPTIONS_DEBUG
+        -DOSGEARTH_BUILD_TOOLS=OFF
+)
 
-#Release
-set(OSGEARTH_TOOL_PATH ${CURRENT_PACKAGES_DIR}/tools/osgearth)
-set(OSGEARTH_TOOL_PLUGIN_PATH ${OSGEARTH_TOOL_PATH}/${OSG_PLUGINS_SUBDIR})
+vcpkg_cmake_install()
+vcpkg_cmake_config_fixup()
 
-file(MAKE_DIRECTORY ${OSGEARTH_TOOL_PATH})
-file(MAKE_DIRECTORY ${OSGEARTH_TOOL_PLUGIN_PATH})
+if(VCPKG_LIBRARY_LINKAGE STREQUAL "static")
+    vcpkg_replace_string("${CURRENT_PACKAGES_DIR}/include/osgEarth/Export" "defined( OSGEARTH_LIBRARY_STATIC )" "1")
+endif()
 
-file(GLOB OSGEARTH_TOOLS ${CURRENT_PACKAGES_DIR}/bin/*.exe)
-file(GLOB OSGDB_PLUGINS ${CURRENT_PACKAGES_DIR}/bin/osgdb*.dll)
+set(osg_plugin_pattern "${VCPKG_TARGET_SHARED_LIBRARY_PREFIX}osgdb*${VCPKG_TARGET_SHARED_LIBRARY_SUFFIX}")
+if("tools" IN_LIST FEATURES)
+    if(VCPKG_LIBRARY_LINKAGE STREQUAL "dynamic")
+        file(GLOB osg_plugins "${CURRENT_PACKAGES_DIR}/plugins/${osg_plugins_subdir}/${osg_plugin_pattern}")
+        file(INSTALL ${osg_plugins} DESTINATION "${CURRENT_PACKAGES_DIR}/tools/${PORT}/${osg_plugins_subdir}")
+        if(NOT VCPKG_BUILD_TYPE)
+            file(GLOB osg_plugins "${CURRENT_PACKAGES_DIR}/debug/plugins/${osg_plugins_subdir}/${osg_plugin_pattern}")
+            file(INSTALL ${osg_plugins} DESTINATION "${CURRENT_PACKAGES_DIR}/tools/${PORT}/debug/${osg_plugins_subdir}")
+        endif()
+    endif()
+    vcpkg_copy_tools(TOOL_NAMES osgearth_3pv osgearth_atlas osgearth_bakefeaturetiles osgearth_boundarygen
+        osgearth_clamp osgearth_conv osgearth_imgui osgearth_tfs osgearth_version osgearth_viewer
+        AUTO_CLEAN
+    )
+    file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/tools/${PORT}/debug")
+endif()
 
-file(COPY ${OSGEARTH_TOOLS} DESTINATION ${OSGEARTH_TOOL_PATH})
-file(COPY ${OSGDB_PLUGINS} DESTINATION ${OSGEARTH_TOOL_PLUGIN_PATH})
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/include")
 
-file(REMOVE_RECURSE ${OSGEARTH_TOOLS})
-file(REMOVE_RECURSE ${OSGDB_PLUGINS})
-
-#Debug
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug/include)
-
-set(OSGEARTH_DEBUG_TOOL_PATH ${CURRENT_PACKAGES_DIR}/debug/tools/osgearth)
-set(OSGEARTH_DEBUG_TOOL_PLUGIN_PATH ${OSGEARTH_DEBUG_TOOL_PATH}/${OSG_PLUGINS_SUBDIR})
-
-file(MAKE_DIRECTORY ${OSGEARTH_DEBUG_TOOL_PATH})
-file(MAKE_DIRECTORY ${OSGEARTH_DEBUG_TOOL_PLUGIN_PATH})
-
-file(GLOB OSGEARTH_DEBUG_TOOLS ${CURRENT_PACKAGES_DIR}/debug/bin/*.exe)
-file(GLOB OSGDB_DEBUG_PLUGINS ${CURRENT_PACKAGES_DIR}/debug/bin/osgdb*.dll)
-
-file(COPY ${OSGEARTH_DEBUG_TOOLS} DESTINATION ${OSGEARTH_DEBUG_TOOL_PATH})
-file(COPY ${OSGDB_DEBUG_PLUGINS} DESTINATION ${OSGEARTH_DEBUG_TOOL_PLUGIN_PATH})
-
-file(REMOVE_RECURSE ${OSGEARTH_DEBUG_TOOLS})
-file(REMOVE_RECURSE ${OSGDB_DEBUG_PLUGINS})
-
-
-# Handle copyright
-file(COPY ${SOURCE_PATH}/LICENSE.txt DESTINATION ${CURRENT_PACKAGES_DIR}/share/osgearth)
-file(RENAME ${CURRENT_PACKAGES_DIR}/share/osgearth/LICENSE.txt ${CURRENT_PACKAGES_DIR}/share/osgearth/copyright)
+vcpkg_install_copyright(FILE_LIST "${SOURCE_PATH}/LICENSE.txt")

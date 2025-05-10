@@ -1,41 +1,29 @@
-include(vcpkg_common_functions)
-
 vcpkg_check_linkage(ONLY_STATIC_LIBRARY)
 
-set(SYSTEMC_VERSION 2.3.3)
-vcpkg_download_distfile(ARCHIVE
-    URLS "https://www.accellera.org/images/downloads/standards/systemc/systemc-${SYSTEMC_VERSION}.zip"
-    FILENAME "systemc-${SYSTEMC_VERSION}.zip"
-    SHA512 f4df172addf816a1928d411dcab42c1679dc4c9d772f406c10d798a2c174d89cdac7a83947fa8beea1e3aff93da522d2d2daf61a4841ec456af7b7446c5c4a14
-)
-vcpkg_extract_source_archive_ex(
+vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
-    ARCHIVE ${ARCHIVE}
-    REF ${SYSTEMC_VERSION}
+    REPO accellera-official/systemc
+    REF "${VERSION}"
+    SHA512 baeadd0318b9ab47fc559a2ab6bd880ac506ac5d858cdcf081a7544ca01688f2e798549655ff7546d02feba120c084951f834b69678a0bb984299bff25a4e21b
+    HEAD_REF main
     PATCHES
         install.patch
-        tlm_correct_dependency.patch
 )
 
-vcpkg_configure_cmake(
-    SOURCE_PATH ${SOURCE_PATH}
-    PREFER_NINJA
+vcpkg_cmake_configure(
+    SOURCE_PATH "${SOURCE_PATH}"
     OPTIONS
         -DCMAKE_CXX_STANDARD=17
         -DDISABLE_COPYRIGHT_MESSAGE=ON
 )
 
-vcpkg_install_cmake()
+vcpkg_cmake_install()
+vcpkg_cmake_config_fixup(CONFIG_PATH lib/cmake/SystemCLanguage PACKAGE_NAME systemclanguage)
+vcpkg_cmake_config_fixup(CONFIG_PATH share/cmake/SystemCTLM PACKAGE_NAME systemctlm)
 
-vcpkg_fixup_cmake_targets(CONFIG_PATH share/SystemCLanguage TARGET_PATH share/SystemCLanguage)
-vcpkg_fixup_cmake_targets(CONFIG_PATH share/SystemCTLM TARGET_PATH share/SystemCTLM)
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/include")
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/share")
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/include/sysc/packages/boost")
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/include/sysc/packages/qt/time")
 
-# Handle copyright
-file(INSTALL ${SOURCE_PATH}/NOTICE DESTINATION ${CURRENT_PACKAGES_DIR}/share/systemc RENAME copyright)
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug/include)
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug/share)
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/include/sysc/packages/qt/time)
-
-# Post-build test for cmake libraries (disabled for now due to issues with vcpkg_test_cmake)
-#vcpkg_test_cmake(PACKAGE_NAME SystemCLanguage)
-#vcpkg_test_cmake(PACKAGE_NAME SystemCTLM)
+file(INSTALL "${SOURCE_PATH}/NOTICE" DESTINATION "${CURRENT_PACKAGES_DIR}/share/${PORT}" RENAME copyright)

@@ -1,61 +1,74 @@
-include(vcpkg_common_functions)
-set(SDL2_MIXER_VERSION 2.0.4)
-vcpkg_download_distfile(ARCHIVE
-    URLS "https://www.libsdl.org/projects/SDL_mixer/release/SDL2_mixer-${SDL2_MIXER_VERSION}.zip"
-    FILENAME "SDL2_mixer-${SDL2_MIXER_VERSION}.zip"
-    SHA512 359b4f9877804f9c4b3cb608ca6082aab684f07a20a816ab71c8cdf85d26f76d67eeb5aee44daf52b7935d82aa3b45941f8f53f07ca3dd5150d6c58ed99e1492
-)
-
-vcpkg_extract_source_archive_ex(
+vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
-    ARCHIVE ${ARCHIVE}
-    REF ${SDL2_MIXER_VERSION}
+    REPO libsdl-org/SDL_mixer
+    REF "release-${VERSION}"
+    SHA512 653ec1f0af0b749b9ed0acd3bfcaa40e1e1ecf34af3127eb74019502ef42a551de226daef4cc89e6a51715f013e0ba0b1e48ae17d6aeee931271f2d10e82058a
+    PATCHES 
+        fix-pkg-prefix.patch
 )
-file(COPY ${CMAKE_CURRENT_LIST_DIR}/CMakeLists.txt DESTINATION ${SOURCE_PATH})
 
-set(USE_MP3 OFF)
-if("mpg123" IN_LIST FEATURES)
-    set(USE_MP3 ON)
+vcpkg_check_features(
+    OUT_FEATURE_OPTIONS FEATURE_OPTIONS
+    FEATURES
+        fluidsynth SDL2MIXER_MIDI_FLUIDSYNTH
+        libflac SDL2MIXER_FLAC
+        libflac SDL2MIXER_FLAC_LIBFLAC
+        libmodplug SDL2MIXER_MOD
+        libmodplug SDL2MIXER_MOD_MODPLUG
+        mpg123 SDL2MIXER_MP3
+        mpg123 SDL2MIXER_MP3_MPG123
+        timidity SDL2MIXER_MIDI_TIMIDITY
+        wavpack SDL2MIXER_WAVPACK
+        wavpack SDL2MIXER_WAVPACK_DSD
+        opusfile SDL2MIXER_OPUS
+)
+
+if("fluidsynth" IN_LIST FEATURES OR "timidity" IN_LIST FEATURES)
+    list(APPEND FEATURE_OPTIONS "-DSDL2MIXER_MIDI=ON")
+else()
+    list(APPEND FEATURE_OPTIONS "-DSDL2MIXER_MIDI=OFF")
 endif()
 
-set(USE_FLAC OFF)
-if("libflac" IN_LIST FEATURES)
-    set(USE_FLAC ON)
+if("fluidsynth" IN_LIST FEATURES)
+    vcpkg_find_acquire_program(PKGCONFIG)
+    list(APPEND EXTRA_OPTIONS "-DPKG_CONFIG_EXECUTABLE=${PKGCONFIG}")
 endif()
 
-set(USE_MOD OFF)
-if("libmodplug" IN_LIST FEATURES)
-    set(USE_MOD ON)
-endif()
+string(COMPARE EQUAL "${VCPKG_LIBRARY_LINKAGE}" "dynamic" BUILD_SHARED)
 
-set(USE_OGGVORBIS OFF)
-if("libvorbis" IN_LIST FEATURES)
-    set(USE_OGGVORBIS ON)
-endif()
-
-set(USE_OPUS OFF)
-if("opusfile" IN_LIST FEATURES)
-    set(USE_OPUS ON)
-endif()
-
-vcpkg_configure_cmake(
-    SOURCE_PATH ${SOURCE_PATH}
-    PREFER_NINJA
+vcpkg_cmake_configure(
+    SOURCE_PATH "${SOURCE_PATH}"
     OPTIONS
-        -DSDL_MIXER_ENABLE_MP3=${USE_MP3}             # mpg123
-        -DSDL_MIXER_ENABLE_FLAC=${USE_FLAC}           # libflac
-        -DSDL_MIXER_ENABLE_MOD=${USE_MOD}             # libmodplug
-        -DSDL_MIXER_ENABLE_OGGVORBIS=${USE_OGGVORBIS} # libvorbis
-        -DSDL_MIXER_ENABLE_OPUS=${USE_OPUS}           # opusfile
-    OPTIONS_DEBUG
-        -DSDL_MIXER_SKIP_HEADERS=ON
+        ${FEATURE_OPTIONS}
+        ${EXTRA_OPTIONS}
+        -DSDL2MIXER_VENDORED=OFF
+        -DSDL2MIXER_SAMPLES=OFF
+        -DSDL2MIXER_DEPS_SHARED=OFF
+        -DSDL2MIXER_OPUS_SHARED=OFF
+        -DSDL2MIXER_VORBIS_VORBISFILE_SHARED=OFF
+        -DSDL2MIXER_VORBIS="VORBISFILE"
+        -DSDL2MIXER_FLAC_DRFLAC=OFF
+        -DSDL2MIXER_MIDI_NATIVE=OFF
+        -DSDL2MIXER_MP3_DRMP3=OFF
+        -DSDL2MIXER_MOD_XMP_SHARED=${BUILD_SHARED}
+    MAYBE_UNUSED_VARIABLES
+        SDL2MIXER_MP3_DRMP3
 )
 
-vcpkg_install_cmake()
+vcpkg_cmake_install()
 vcpkg_copy_pdbs()
+vcpkg_cmake_config_fixup(
+    PACKAGE_NAME "SDL2_mixer"
+    CONFIG_PATH "lib/cmake/SDL2_mixer"
+)
+vcpkg_fixup_pkgconfig()
 
-vcpkg_fixup_cmake_targets(CONFIG_PATH "share/sdl2-mixer")
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug/share)
+if(NOT VCPKG_BUILD_TYPE)
+    vcpkg_replace_string("${CURRENT_PACKAGES_DIR}/debug/lib/pkgconfig/SDL2_mixer.pc" "-lSDL2_mixer" "-lSDL2_mixerd")
+endif()
 
-file(COPY ${SOURCE_PATH}/COPYING.txt DESTINATION ${CURRENT_PACKAGES_DIR}/share/sdl2-mixer)
-file(RENAME ${CURRENT_PACKAGES_DIR}/share/sdl2-mixer/COPYING.txt ${CURRENT_PACKAGES_DIR}/share/sdl2-mixer/copyright)
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/include")
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/share")
+
+file(INSTALL "${CMAKE_CURRENT_LIST_DIR}/usage" DESTINATION "${CURRENT_PACKAGES_DIR}/share/${PORT}")
+vcpkg_install_copyright(FILE_LIST "${SOURCE_PATH}/LICENSE.txt")

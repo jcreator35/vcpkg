@@ -1,82 +1,154 @@
-include(vcpkg_common_functions)
-
-if(NOT VCPKG_TARGET_ARCHITECTURE STREQUAL "x64")
-  message(FATAL_ERROR "Apache Arrow only supports x64")
-endif()
-
-vcpkg_from_github(
-    OUT_SOURCE_PATH SOURCE_PATH
-    REPO apache/arrow
-    REF apache-arrow-0.13.0
-    SHA512 bbb14d11abf267a6902c7c9e0215ba7c5284f07482be2de42707145265d2809c89c2d4d8f8b918fdb8c33a5ecbd650875b987a1a694cdf653e766822be67a47d
-    HEAD_REF master
+vcpkg_download_distfile(
+    ARCHIVE_PATH
+    URLS "https://archive.apache.org/dist/arrow/arrow-${VERSION}/apache-arrow-${VERSION}.tar.gz"
+    FILENAME apache-arrow-${VERSION}.tar.gz
+    SHA512 524187c6f12bbb677b5d4a53e1608c69b56c83a5c8667bfe82d5a10232c33f151a8a7b5e6e26af48d1e0ca25a5d3dc885b27d9b5e798c7e07f115df8f0779516
 )
-
-set(CPP_SOURCE_PATH "${SOURCE_PATH}/cpp")
-
-vcpkg_apply_patches(
-    SOURCE_PATH ${CPP_SOURCE_PATH}
+vcpkg_extract_source_archive(
+    SOURCE_PATH
+    ARCHIVE ${ARCHIVE_PATH}
     PATCHES
-    "${CMAKE_CURRENT_LIST_DIR}/all.patch"
+        0001-msvc-static-name.patch
+        0002-thrift.patch
+        0003-utf8proc.patch
+        0004-android-musl.patch
+        0005-android-datetime.patch
+        0006-cmake-msvcruntime.patch
+        0007-fix-path.patch # From https://github.com/apache/arrow/issues/39023#issuecomment-1835390089
+        0008-arrow-parquet-size-statistics-include.patch
 )
+
+vcpkg_check_features(OUT_FEATURE_OPTIONS FEATURE_OPTIONS
+    FEATURES
+        acero       ARROW_ACERO
+        compute     ARROW_COMPUTE
+        csv         ARROW_CSV
+        cuda        ARROW_CUDA
+        dataset     ARROW_DATASET
+        filesystem  ARROW_FILESYSTEM
+        flight      ARROW_FLIGHT
+        flightsql   ARROW_FLIGHT_SQL
+        gcs         ARROW_GCS
+        jemalloc    ARROW_JEMALLOC
+        json        ARROW_JSON
+        mimalloc    ARROW_MIMALLOC
+        orc         ARROW_ORC
+        parquet     ARROW_PARQUET
+        parquet     PARQUET_REQUIRE_ENCRYPTION
+        s3          ARROW_S3
+)
+
+if(VCPKG_TARGET_IS_WINDOWS AND NOT VCPKG_TARGET_IS_MINGW)
+    list(APPEND FEATURE_OPTIONS "-DARROW_USE_NATIVE_INT128=OFF")
+endif()
 
 string(COMPARE EQUAL ${VCPKG_LIBRARY_LINKAGE} "dynamic" ARROW_BUILD_SHARED)
 string(COMPARE EQUAL ${VCPKG_LIBRARY_LINKAGE} "static" ARROW_BUILD_STATIC)
+string(COMPARE EQUAL ${VCPKG_LIBRARY_LINKAGE} "dynamic" ARROW_DEPENDENCY_USE_SHARED)
 
-string(COMPARE EQUAL ${VCPKG_LIBRARY_LINKAGE} "static" IS_STATIC)
-
-if (IS_STATIC)
-    set(PARQUET_ARROW_LINKAGE static)
-    set(BOOST_USE_SHARED off)
-    set(USE_STATIC_CRT on)
-else()
-    set(PARQUET_ARROW_LINKAGE shared)
-    set(BOOST_USE_SHARED on)
-    set(USE_STATIC_CRT off)
-endif()
-
-vcpkg_configure_cmake(
-    SOURCE_PATH ${CPP_SOURCE_PATH}
-    PREFER_NINJA
+vcpkg_cmake_configure(
+    SOURCE_PATH "${SOURCE_PATH}/cpp"
     OPTIONS
-    -DARROW_DEPENDENCY_SOURCE=SYSTEM
-    -DARROW_BUILD_TESTS=off
-    -DBOOST_ROOT=${CURRENT_INSTALLED_DIR}
-    -DARROW_PARQUET=ON
-    -DARROW_BUILD_STATIC=${ARROW_BUILD_STATIC}
-    -DARROW_BUILD_SHARED=${ARROW_BUILD_SHARED}
-    -DBUILD_STATIC=${ARROW_BUILD_STATIC}
-    -DBUILD_SHARED=${ARROW_BUILD_SHARED}
-    -DPARQUET_ARROW_LINKAGE=${PARQUET_ARROW_LINKAGE}
-    -DARROW_BOOST_USE_SHARED=${BOOST_USE_SHARED}
-    -DARROW_USE_STATIC_CRT=${USE_STATIC_CRT}
-    -DARROW_GFLAGS_USE_SHARED=off
-    -DARROW_JEMALLOC=off
+        ${FEATURE_OPTIONS}
+        -DARROW_BUILD_SHARED=${ARROW_BUILD_SHARED}
+        -DARROW_BUILD_STATIC=${ARROW_BUILD_STATIC}
+        -DARROW_BUILD_TESTS=OFF
+        -DARROW_DEPENDENCY_SOURCE=SYSTEM
+        -DARROW_DEPENDENCY_USE_SHARED=${ARROW_DEPENDENCY_USE_SHARED}
+        -DARROW_PACKAGE_KIND=vcpkg
+        -DARROW_WITH_BROTLI=ON
+        -DARROW_WITH_BZ2=ON
+        -DARROW_WITH_LZ4=ON
+        -DARROW_WITH_SNAPPY=ON
+        -DARROW_WITH_ZLIB=ON
+        -DARROW_WITH_ZSTD=ON
+        -DBUILD_WARNING_LEVEL=PRODUCTION
+        -DCMAKE_SYSTEM_PROCESSOR=${VCPKG_TARGET_ARCHITECTURE}
+        -DZSTD_MSVC_LIB_PREFIX=
+    MAYBE_UNUSED_VARIABLES
+        ZSTD_MSVC_LIB_PREFIX
 )
 
-vcpkg_install_cmake()
-
+vcpkg_cmake_install()
 vcpkg_copy_pdbs()
 
-if(WIN32)
-    if(VCPKG_LIBRARY_LINKAGE STREQUAL "static")
-        file(RENAME ${CURRENT_PACKAGES_DIR}/lib/arrow_static.lib ${CURRENT_PACKAGES_DIR}/lib/arrow.lib)
-        file(RENAME ${CURRENT_PACKAGES_DIR}/debug/lib/arrow_static.lib ${CURRENT_PACKAGES_DIR}/debug/lib/arrow.lib)
-        file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug/bin ${CURRENT_PACKAGES_DIR}/bin)
-    else()
-        file(REMOVE ${CURRENT_PACKAGES_DIR}/lib/arrow_static.lib ${CURRENT_PACKAGES_DIR}/debug/lib/arrow_static.lib)
-    endif()
+vcpkg_fixup_pkgconfig()
+
+if(EXISTS "${CURRENT_PACKAGES_DIR}/lib/arrow_static.lib")
+    message(FATAL_ERROR "Installed lib file should be named 'arrow.lib' via patching the upstream build.")
 endif()
 
-file(MAKE_DIRECTORY ${CURRENT_PACKAGES_DIR}/share/arrow/cmake)
-file(RENAME ${CURRENT_PACKAGES_DIR}/lib/cmake/arrow/arrowConfig.cmake ${CURRENT_PACKAGES_DIR}/share/arrow/cmake/arrowConfig.cmake)
-file(RENAME ${CURRENT_PACKAGES_DIR}/lib/cmake/arrow/arrowConfigVersion.cmake ${CURRENT_PACKAGES_DIR}/share/arrow/cmake/arrowConfigVersion.cmake)
-file(RENAME ${CURRENT_PACKAGES_DIR}/lib/cmake/arrow/arrowTargets-release.cmake ${CURRENT_PACKAGES_DIR}/share/arrow/cmake/arrowTargets-release.cmake)
-file(RENAME ${CURRENT_PACKAGES_DIR}/lib/cmake/arrow/arrowTargets.cmake ${CURRENT_PACKAGES_DIR}/share/arrow/cmake/arrowTargets.cmake)
-file(RENAME ${CURRENT_PACKAGES_DIR}/debug/lib/cmake/arrow/arrowTargets-debug.cmake ${CURRENT_PACKAGES_DIR}/share/arrow/cmake/arrowTargets-debug.cmake)
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug/lib/cmake)
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/lib/cmake)
+if("dataset" IN_LIST FEATURES)
+    vcpkg_cmake_config_fixup(
+        PACKAGE_NAME arrowdataset
+        CONFIG_PATH lib/cmake/ArrowDataset
+        DO_NOT_DELETE_PARENT_CONFIG_PATH
+    )
+endif()
 
-file(INSTALL ${SOURCE_PATH}/LICENSE.txt DESTINATION ${CURRENT_PACKAGES_DIR}/share/arrow RENAME copyright)
+if("acero" IN_LIST FEATURES)
+    vcpkg_cmake_config_fixup(
+        PACKAGE_NAME arrowacero
+        CONFIG_PATH lib/cmake/ArrowAcero
+        DO_NOT_DELETE_PARENT_CONFIG_PATH
+    )
+endif()
 
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug/include)
+if("flight" IN_LIST FEATURES)
+    vcpkg_cmake_config_fixup(
+        PACKAGE_NAME ArrowFlight
+        CONFIG_PATH lib/cmake/ArrowFlight
+        DO_NOT_DELETE_PARENT_CONFIG_PATH
+    )
+endif()
+
+if("flightsql" IN_LIST FEATURES)
+    vcpkg_cmake_config_fixup(
+        PACKAGE_NAME ArrowFlightSql
+        CONFIG_PATH lib/cmake/ArrowFlightSql
+        DO_NOT_DELETE_PARENT_CONFIG_PATH
+    )
+endif()
+
+if("parquet" IN_LIST FEATURES)
+    vcpkg_cmake_config_fixup(
+        PACKAGE_NAME parquet
+        CONFIG_PATH lib/cmake/Parquet
+        DO_NOT_DELETE_PARENT_CONFIG_PATH
+    )
+endif()
+vcpkg_cmake_config_fixup(CONFIG_PATH lib/cmake/Arrow)
+
+file(INSTALL "${CMAKE_CURRENT_LIST_DIR}/usage" DESTINATION "${CURRENT_PACKAGES_DIR}/share/${PORT}")
+if("parquet" IN_LIST FEATURES)
+    file(READ "${CMAKE_CURRENT_LIST_DIR}/usage-parquet" usage-parquet)
+    file(APPEND "${CURRENT_PACKAGES_DIR}/share/${PORT}/usage" "${usage-parquet}")
+endif()
+if("dataset" IN_LIST FEATURES)
+    file(READ "${CMAKE_CURRENT_LIST_DIR}/usage-dataset" usage-dataset)
+    file(APPEND "${CURRENT_PACKAGES_DIR}/share/${PORT}/usage" "${usage-dataset}")
+endif()
+if("acero" IN_LIST FEATURES)
+    file(READ "${CMAKE_CURRENT_LIST_DIR}/usage-acero" usage-acero)
+    file(APPEND "${CURRENT_PACKAGES_DIR}/share/${PORT}/usage" "${usage-acero}")
+endif()
+
+if("flight" IN_LIST FEATURES)
+    file(READ "${CMAKE_CURRENT_LIST_DIR}/usage-flight" usage-flight)
+    file(APPEND "${CURRENT_PACKAGES_DIR}/share/${PORT}/usage" "${usage-flight}")
+endif()
+
+if("flightsql" IN_LIST FEATURES)
+    file(READ "${CMAKE_CURRENT_LIST_DIR}/usage-flightsql" usage-flightsql)
+    file(APPEND "${CURRENT_PACKAGES_DIR}/share/${PORT}/usage" "${usage-flightsql}")
+endif()
+
+if("example" IN_LIST FEATURES)
+    file(INSTALL "${SOURCE_PATH}/cpp/examples/minimal_build/" DESTINATION "${CURRENT_PACKAGES_DIR}/share/${PORT}/example")
+endif()
+
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/include")
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/share")
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/share/doc")
+
+vcpkg_install_copyright(FILE_LIST "${SOURCE_PATH}/LICENSE.txt")

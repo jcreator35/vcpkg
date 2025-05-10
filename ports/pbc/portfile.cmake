@@ -1,29 +1,15 @@
-include(vcpkg_common_functions)
-
-vcpkg_check_linkage(ONLY_STATIC_LIBRARY)
-
-if(VCPKG_CMAKE_SYSTEM_NAME STREQUAL "WindowsStore")
-    message(FATAL_ERROR "PBC currently can only be built for desktop")
-endif()
-
-if(VCPKG_CRT_LINKAGE STREQUAL "static" AND VCPKG_LIBRARY_LINKAGE STREQUAL "dynamic")
-    message(FATAL_ERROR "PBC currently can only be built using the dynamic CRT when building DLLs")
-endif()
-
-set(PBC_VERSION 0.5.14)
-
-if(VCPKG_CMAKE_SYSTEM_NAME)
+if(NOT VCPKG_TARGET_IS_WINDOWS)
     vcpkg_download_distfile(
         ARCHIVE
-        URLS "https://crypto.stanford.edu/pbc/files/pbc-${PBC_VERSION}.tar.gz"
-        FILENAME pbc-${PBC_VERSION}.tar.gz
+        URLS "https://crypto.stanford.edu/pbc/files/pbc-${VERSION}.tar.gz"
+        FILENAME pbc-${VERSION}.tar.gz
         SHA512 d75d4ceb3f67ee62c7ca41e2a91ee914fbffaeb70256675aed6734d586950ea8e64e2f16dc069d71481eddb703624df8d46497005fb58e75cf098dd7e7961333
     )
 
-    vcpkg_extract_source_archive_ex(
-        OUT_SOURCE_PATH SOURCE_PATH
+    vcpkg_extract_source_archive(
+        SOURCE_PATH
         ARCHIVE ${ARCHIVE}
-        REF ${PBC_VERSION}
+        SOURCE_BASE "${VERSION}"
         PATCHES linux.patch
     )
 
@@ -37,49 +23,21 @@ if(VCPKG_CMAKE_SYSTEM_NAME)
     endif()
 
     set(OPTIONS ${SHARED_STATIC} LEX=${FLEX} YACC=${BISON}\ -y)
-    vcpkg_execute_required_process(
-        COMMAND ${SOURCE_PATH}/setup
-        WORKING_DIRECTORY ${SOURCE_PATH}
-        LOGNAME setup-${TARGET_TRIPLET}
+
+    vcpkg_configure_make(
+        SOURCE_PATH "${SOURCE_PATH}"
+        AUTOCONFIG
+        COPY_SOURCE
+        OPTIONS
+            ${OPTIONS}
     )
 
-    file(REMOVE_RECURSE ${CURRENT_BUILDTREES_DIR}/${TARGET_TRIPLET}-dbg)
-    file(MAKE_DIRECTORY ${CURRENT_BUILDTREES_DIR}/${TARGET_TRIPLET}-dbg)
-    message(STATUS "Configuring ${TARGET_TRIPLET}-dbg")
-    set(ENV{CFLAGS} "${VCPKG_C_FLAGS} ${VCPKG_C_FLAGS_DEBUG} -O0 -g -I${SOURCE_PATH}/include")
-    set(ENV{LDFLAGS} "${VCPKG_LINKER_FLAGS}")
-    vcpkg_execute_required_process(
-        COMMAND ${SOURCE_PATH}/configure --prefix=${CURRENT_PACKAGES_DIR}/debug ${OPTIONS} --with-sysroot=${CURRENT_INSTALLED_DIR}/debug
-        WORKING_DIRECTORY ${CURRENT_BUILDTREES_DIR}/${TARGET_TRIPLET}-dbg
-        LOGNAME configure-${TARGET_TRIPLET}-dbg
-    )
-    message(STATUS "Building ${TARGET_TRIPLET}-dbg")
-    vcpkg_execute_required_process(
-        COMMAND make -j install
-        WORKING_DIRECTORY ${CURRENT_BUILDTREES_DIR}/${TARGET_TRIPLET}-dbg
-        LOGNAME install-${TARGET_TRIPLET}-dbg
-    )
+    vcpkg_install_make()
 
-    file(REMOVE_RECURSE ${CURRENT_BUILDTREES_DIR}/${TARGET_TRIPLET}-rel)
-    file(MAKE_DIRECTORY ${CURRENT_BUILDTREES_DIR}/${TARGET_TRIPLET}-rel)
-    message(STATUS "Configuring ${TARGET_TRIPLET}-rel")
-    set(ENV{CFLAGS} "${VCPKG_C_FLAGS} ${VCPKG_C_FLAGS_RELEASE} -O3 -I${SOURCE_PATH}/include")
-    set(ENV{LDFLAGS} "${VCPKG_LINKER_FLAGS}")
-    vcpkg_execute_required_process(
-        COMMAND ${SOURCE_PATH}/configure --prefix=${CURRENT_PACKAGES_DIR} ${OPTIONS} --with-sysroot=${CURRENT_INSTALLED_DIR}
-        WORKING_DIRECTORY ${CURRENT_BUILDTREES_DIR}/${TARGET_TRIPLET}-rel
-        LOGNAME configure-${TARGET_TRIPLET}-rel
-    )
-    message(STATUS "Building ${TARGET_TRIPLET}-rel")
-    vcpkg_execute_required_process(
-        COMMAND make -j install
-        WORKING_DIRECTORY ${CURRENT_BUILDTREES_DIR}/${TARGET_TRIPLET}-rel
-        LOGNAME install-${TARGET_TRIPLET}-rel
-    )
-
-    file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug/include ${CURRENT_PACKAGES_DIR}/debug/share ${CURRENT_PACKAGES_DIR}/share/info)
-    configure_file(${SOURCE_PATH}/COPYING ${CURRENT_PACKAGES_DIR}/share/pbc/copyright COPYONLY)
+    file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/include" "${CURRENT_PACKAGES_DIR}/debug/share" "${CURRENT_PACKAGES_DIR}/share/info")
+    vcpkg_install_copyright(FILE_LIST "${SOURCE_PATH}/COPYING")
 else()
+    vcpkg_check_linkage(ONLY_STATIC_LIBRARY)
     vcpkg_from_github(
         OUT_SOURCE_PATH SOURCE_PATH
         REPO blynn/pbc
@@ -89,20 +47,17 @@ else()
         PATCHES windows.patch
     )
 
-    set(CMAKE_FIND_LIBRARY_PREFIXES "")
-    set(CMAKE_FIND_LIBRARY_SUFFIXES "")
-
-    find_path(MPIR_INCLUDE_DIR "gmp.h" HINTS ${CURRENT_INSTALLED_DIR} PATH_SUFFIXES include)
+    find_path(MPIR_INCLUDE_DIR "gmp.h" HINTS "${CURRENT_INSTALLED_DIR}" PATH_SUFFIXES include)
     if(NOT MPIR_INCLUDE_DIR)
         message(FATAL_ERROR "GMP includes not found")
     endif()
 
-    find_library(MPIR_LIBRARIES_REL NAMES "mpir.lib" HINTS ${CURRENT_INSTALLED_DIR} PATH_SUFFIXES lib)
+    find_library(MPIR_LIBRARIES_REL NAMES "mpir.lib" HINTS "${CURRENT_INSTALLED_DIR}" PATH_SUFFIXES lib)
     if(NOT MPIR_LIBRARIES_REL)
         message(FATAL_ERROR "mpir library not found")
     endif()
 
-    find_library(MPIR_LIBRARIES_DBG NAMES "mpir.lib" HINTS ${CURRENT_INSTALLED_DIR} PATH_SUFFIXES debug/lib)
+    find_library(MPIR_LIBRARIES_DBG NAMES "mpir.lib" HINTS "${CURRENT_INSTALLED_DIR}" PATH_SUFFIXES debug/lib)
     if(NOT MPIR_LIBRARIES_DBG)
         message(FATAL_ERROR "mpir debug library not found")
     endif()
@@ -115,12 +70,6 @@ else()
         set(ConfigurationSuffix " DLL")
     endif()
 
-    if(VCPKG_CRT_LINKAGE STREQUAL "static")
-        set(RuntimeLibraryExt "")
-    else()
-        set(RuntimeLibraryExt "DLL")
-    endif()
-
     if(TRIPLET_SYSTEM_ARCH STREQUAL "x86")
         set(Platform "Win32")
     else()
@@ -128,26 +77,24 @@ else()
     endif()
 
     # PBC expects mpir directory in build root
-    get_filename_component(SOURCE_PATH_PARENT ${SOURCE_PATH} DIRECTORY)
-    file(REMOVE_RECURSE ${SOURCE_PATH_PARENT}/mpir)
-    file(MAKE_DIRECTORY ${SOURCE_PATH_PARENT}/mpir)
+    get_filename_component(SOURCE_PATH_PARENT "${SOURCE_PATH}" DIRECTORY)
+    file(REMOVE_RECURSE "${SOURCE_PATH_PARENT}/mpir")
+    file(MAKE_DIRECTORY "${SOURCE_PATH_PARENT}/mpir")
     file(GLOB FILES ${MPIR_INCLUDE_DIR}/gmp*.h)
     file(COPY ${FILES} ${MPIR_LIBRARIES_REL} DESTINATION "${SOURCE_PATH_PARENT}/mpir/${LibrarySuffix}/${Platform}/Release")
     file(COPY ${FILES} ${MPIR_LIBRARIES_DBG} DESTINATION "${SOURCE_PATH_PARENT}/mpir/${LibrarySuffix}/${Platform}/Debug")
 
-    get_filename_component(SOURCE_PATH_SUFFIX ${SOURCE_PATH} NAME)
-    vcpkg_install_msbuild(SOURCE_PATH ${SOURCE_PATH_PARENT}
-        PROJECT_SUBPATH ${SOURCE_PATH_SUFFIX}/pbcwin/projects/pbclib.vcxproj
-        INCLUDES_SUBPATH ${SOURCE_PATH_SUFFIX}/include
-        LICENSE_SUBPATH ${SOURCE_PATH_SUFFIX}/COPYING
+    get_filename_component(SOURCE_PATH_SUFFIX "${SOURCE_PATH}" NAME)
+    vcpkg_msbuild_install(SOURCE_PATH "${SOURCE_PATH_PARENT}"
+        PROJECT_SUBPATH "${SOURCE_PATH_SUFFIX}/pbcwin/projects/pbclib.vcxproj"
         RELEASE_CONFIGURATION "Release${ConfigurationSuffix}"
         DEBUG_CONFIGURATION "Debug${ConfigurationSuffix}"
-        OPTIONS_DEBUG "/p:RuntimeLibrary=MultiThreadedDebug${RuntimeLibraryExt}"
-        OPTIONS_RELEASE "/p:RuntimeLibrary=MultiThreaded${RuntimeLibraryExt}"
         OPTIONS /p:SolutionDir=../
-        ALLOW_ROOT_INCLUDES ON
     )
 
+    vcpkg_install_copyright(FILE_LIST "${SOURCE_PATH}/COPYING")
+    file(COPY "${SOURCE_PATH}/include/" DESTINATION "${CURRENT_PACKAGES_DIR}/include")
     # clean up mpir stuff
-    file(REMOVE ${CURRENT_PACKAGES_DIR}/lib/mpir.lib ${CURRENT_PACKAGES_DIR}/debug/lib/mpir.lib)
+    file(REMOVE "${CURRENT_PACKAGES_DIR}/lib/mpir.lib" "${CURRENT_PACKAGES_DIR}/debug/lib/mpir.lib")
+    file(INSTALL "${CMAKE_CURRENT_LIST_DIR}/unofficial-pbc-config.cmake" DESTINATION "${CURRENT_PACKAGES_DIR}/share/unofficial-${PORT}")
 endif()

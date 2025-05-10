@@ -1,123 +1,155 @@
 if (EXISTS "${CURRENT_INSTALLED_DIR}/include/mysql/mysql.h")
-    message(FATAL_ERROR "FATAL ERROR: libmysql and libmariadb are incompatible.")
+    message(FATAL_ERROR "FATAL ERROR: ${PORT} and libmariadb are incompatible.")
 endif()
-
-if(VCPKG_CMAKE_SYSTEM_NAME STREQUAL "WindowsStore")
-    message(FATAL_ERROR "libmysql cannot currently be cross-compiled for UWP")
-endif()
-
-if(VCPKG_TARGET_ARCHITECTURE STREQUAL "x86" AND NOT CMAKE_SYSTEM_NAME OR CMAKE_SYSTEM_NAME STREQUAL "WindowsStore")
-    message(FATAL_ERROR "Oracle has dropped support in libmysql for 32-bit Windows.")
-endif()
-
-include(vcpkg_common_functions)
 
 vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
     REPO mysql/mysql-server
-    REF mysql-8.0.4
-    SHA512 8d9129e7670e88df14238299052a5fe6d4f3e40bf27ef7a3ca8f4f91fb40507b13463e9bd24435b34e5d06c5d056dfb259fb04e77cc251b188eea734db5642be
+    REF "mysql-${VERSION}"
+    SHA512 f0591d263de557877a618b04871d332dc227e26c7e9b61994093dc9af29971ea6332761de5391bb8da955bd58b3b98da90722bafdbf86f36764995a70f94ae62
     HEAD_REF master
-)
-
-vcpkg_apply_patches(
-    SOURCE_PATH ${SOURCE_PATH}
     PATCHES
-        ${CMAKE_CURRENT_LIST_DIR}/ignore-boost-version.patch
-        ${CMAKE_CURRENT_LIST_DIR}/system-libs.patch
+        dependencies.patch
+        install-exports.patch
+        fix_dup_symbols.patch
+        cross-build.patch
+        fix-pdb-install-path.patch
 )
 
-file(REMOVE_RECURSE ${SOURCE_PATH}/include/boost_1_65_0)
-
-set(STACK_DIRECTION)
-if(VCPKG_TARGET_ARCHITECTURE STREQUAL "x86" OR VCPKG_TARGET_ARCHITECTURE STREQUAL "x64")
-    set(STACK_DIRECTION -DSTACK_DIRECTION=-1)
+file(GLOB third_party "${SOURCE_PATH}/extra/*" "${SOURCE_PATH}/include/boost_1_*")
+list(REMOVE_ITEM third_party "${SOURCE_PATH}/extra/libedit")
+if (third_party)
+    file(REMOVE_RECURSE ${third_party})
 endif()
 
-vcpkg_configure_cmake(
-    SOURCE_PATH ${SOURCE_PATH}
-    PREFER_NINJA
+#Skip the version check for Visual Studio
+set(FORCE_UNSUPPORTED_COMPILER "")
+if(VCPKG_TARGET_IS_WINDOWS)
+    set(FORCE_UNSUPPORTED_COMPILER 1)
+endif()
+
+string(COMPARE EQUAL "${VCPKG_LIBRARY_LINKAGE}" "static"  BUILD_STATIC_LIBS)
+string(COMPARE EQUAL "${VCPKG_CRT_LINKAGE}" "static"  STATIC_CRT_LINKAGE)
+
+set(cross_options "")
+if(VCPKG_CROSSCOMPILING)
+    list(APPEND cross_options
+        -DCMAKE_CROSSCOMPILING=1
+        -DVCPKG_HOST_TRIPLET=${HOST_TRIPLET}
+        # required, skip try_run
+        -DHAVE_RAPIDJSON_WITH_STD_REGEX=1
+    )
+    if(NOT VCPKG_TARGET_IS_WINDOWS)
+        list(APPEND cross_options
+            # optimistic, skip try_run
+            -DHAVE_CLOCK_GETTIME=1
+            -DHAVE_CLOCK_REALTIME=1
+            # pessimistic, skip try_run
+            -DHAVE_C_FLOATING_POINT_FUSED_MADD=1
+            -DHAVE_CXX_FLOATING_POINT_FUSED_MADD=1
+            -DHAVE_SETNS=0
+        )
+    endif()
+endif()
+
+vcpkg_cmake_configure(
+    SOURCE_PATH "${SOURCE_PATH}"
     OPTIONS
+        ${cross_options}
+        -DINSTALL_INCLUDEDIR=include/mysql
+        -DINSTALL_DOCDIR=share/${PORT}/doc
+        -DINSTALL_MANDIR=share/${PORT}/doc
+        -DINSTALL_INFODIR=share/${PORT}/doc
+        -DINSTALL_DOCREADMEDIR=share/${PORT}
+        -DINSTALL_SHAREDIR=share
+        -DINSTALL_MYSQLSHAREDIR=share/${PORT}
         -DWITHOUT_SERVER=ON
+        -DWITH_BUILD_ID=OFF
         -DWITH_UNIT_TESTS=OFF
         -DENABLED_PROFILING=OFF
         -DWIX_DIR=OFF
-        -DHAVE_LLVM_LIBCPP_EXITCODE=1
-        ${STACK_DIRECTION}
-        -DWINDOWS_RUNTIME_MD=ON # Note: this disables _replacement_ of /MD with /MT. If /MT is specified, it will be preserved.
         -DIGNORE_BOOST_VERSION=ON
-        -DWITH_SSL=system
-        -DWITH_ICU=system
-        -DWITH_LIBEVENT=system
-        -DWITH_LZMA=system
+        -DWITH_TEST_TRACE_PLUGIN=OFF
+        -DMYSQL_MAINTAINER_MODE=OFF
+        -DBUNDLE_RUNTIME_LIBRARIES=OFF
+        -DDOWNLOAD_BOOST=OFF
+        -DWITH_AUTHENTICATION_KERBEROS=OFF
+        -DWITH_AUTHENTICATION_LDAP_DEFAULT=OFF
+        -DWITH_CURL=none
+        -DWITH_EDITLINE=bundled # not in vcpkg
         -DWITH_LZ4=system
+        -DWITH_RAPIDJSON=system
+        -DWITH_SSL=system
+        -DWITH_SYSTEMD=OFF
         -DWITH_ZLIB=system
+        -DWITH_ZSTD=system
+        -DFORCE_UNSUPPORTED_COMPILER=${FORCE_UNSUPPORTED_COMPILER}
+        -DINSTALL_STATIC_LIBRARIES=${BUILD_STATIC_LIBS}
+        -DLINK_STATIC_RUNTIME_LIBRARIES=${STATIC_CRT_LINKAGE}
+    MAYBE_UNUSED_VARIABLES
+        BUNDLE_RUNTIME_LIBRARIES # only on windows
+        LINK_STATIC_RUNTIME_LIBRARIES # only on windows
+        WIX_DIR # only on windows
+        WITH_BUILD_ID # only on windows
 )
 
-vcpkg_install_cmake(ADD_BIN_TO_PATH)
+vcpkg_cmake_install(ADD_BIN_TO_PATH)
+vcpkg_copy_pdbs()
+vcpkg_cmake_config_fixup(PACKAGE_NAME unofficial-libmysql)
+vcpkg_fixup_pkgconfig()
 
-# delete debug headers
-file(REMOVE_RECURSE
-    ${CURRENT_PACKAGES_DIR}/debug/include)
-
-# switch mysql into /mysql
-file(RENAME ${CURRENT_PACKAGES_DIR}/include ${CURRENT_PACKAGES_DIR}/include2)
-file(MAKE_DIRECTORY ${CURRENT_PACKAGES_DIR}/include)
-file(RENAME ${CURRENT_PACKAGES_DIR}/include2 ${CURRENT_PACKAGES_DIR}/include/mysql)
-
-## delete useless vcruntime/scripts/bin/msg file
-file(REMOVE_RECURSE
-    ${CURRENT_PACKAGES_DIR}/share
-    ${CURRENT_PACKAGES_DIR}/debug/share
-    ${CURRENT_PACKAGES_DIR}/bin
-    ${CURRENT_PACKAGES_DIR}/debug/bin
-    ${CURRENT_PACKAGES_DIR}/docs
-    ${CURRENT_PACKAGES_DIR}/debug/docs
-    ${CURRENT_PACKAGES_DIR}/lib/debug)
-
-# remove misc files
-file(REMOVE
-    ${CURRENT_PACKAGES_DIR}/LICENSE
-    ${CURRENT_PACKAGES_DIR}/README
-    ${CURRENT_PACKAGES_DIR}/debug/LICENSE
-    ${CURRENT_PACKAGES_DIR}/debug/README)
-
-# remove not-related libs
-file (REMOVE
-    ${CURRENT_PACKAGES_DIR}/lib/mysqlservices.lib
-    ${CURRENT_PACKAGES_DIR}/debug/lib/mysqlservices.lib)
-
-if(VCPKG_LIBRARY_LINKAGE STREQUAL "static")
-    file(REMOVE
-        ${CURRENT_PACKAGES_DIR}/lib/libmysql.lib
-        ${CURRENT_PACKAGES_DIR}/lib/libmysql.dll
-        ${CURRENT_PACKAGES_DIR}/lib/libmysql.pdb
-        ${CURRENT_PACKAGES_DIR}/debug/lib/libmysql.lib
-        ${CURRENT_PACKAGES_DIR}/debug/lib/libmysql.dll
-        ${CURRENT_PACKAGES_DIR}/debug/lib/libmysql.pdb)
+set(MYSQL_TOOLS
+    my_print_defaults
+    mysql
+    mysql_config_editor
+    mysql_migrate_keyring
+    mysql_secure_installation
+    mysql_ssl_rsa_setup
+    mysqladmin
+    mysqlbinlog
+    mysqlcheck
+    mysqldump
+    mysqlimport
+    mysqlpump
+    mysqlshow
+    mysqlslap
+    mysqltest
+    perror
+    zlib_decompress
+)
+if (NOT VCPKG_CROSSCOMPILING)
+    list(APPEND MYSQL_TOOLS
+        comp_err
+    )
+endif()
+if (VCPKG_TARGET_IS_WINDOWS)
+    list(APPEND MYSQL_TOOLS
+        echo
+    )
 else()
-    file(REMOVE
-        ${CURRENT_PACKAGES_DIR}/lib/mysqlclient.lib
-        ${CURRENT_PACKAGES_DIR}/debug/lib/mysqlclient.lib)
-
-    # correct the dll directory
-    if(NOT DEFINED VCPKG_BUILD_TYPE OR VCPKG_BUILD_TYPE STREQUAL "release")
-        file(MAKE_DIRECTORY ${CURRENT_PACKAGES_DIR}/bin)
-        file (RENAME ${CURRENT_PACKAGES_DIR}/lib/libmysql.dll ${CURRENT_PACKAGES_DIR}/bin/libmysql.dll)
-        file (RENAME ${CURRENT_PACKAGES_DIR}/lib/libmysql.pdb ${CURRENT_PACKAGES_DIR}/bin/libmysql.pdb)
-    endif()
-
-    if(NOT DEFINED VCPKG_BUILD_TYPE OR VCPKG_BUILD_TYPE STREQUAL "debug")
-        file(MAKE_DIRECTORY ${CURRENT_PACKAGES_DIR}/debug/bin)
-        file (RENAME ${CURRENT_PACKAGES_DIR}/debug/lib/libmysql.dll ${CURRENT_PACKAGES_DIR}/debug/bin/libmysql.dll)
-        file (RENAME ${CURRENT_PACKAGES_DIR}/debug/lib/libmysql.pdb ${CURRENT_PACKAGES_DIR}/debug/bin/libmysql.pdb)
-    endif()
+    list(APPEND MYSQL_TOOLS
+        mysql_config
+    )
 endif()
 
-file(READ ${CURRENT_PACKAGES_DIR}/include/mysql/mysql_com.h _contents)
-string(REPLACE "#include <mysql/udf_registration_types.h>" "#include \"mysql/udf_registration_types.h\"" _contents "${_contents}")
-file(WRITE ${CURRENT_PACKAGES_DIR}/include/mysql/mysql_com.h "${_contents}")
+vcpkg_copy_tools(TOOL_NAMES ${MYSQL_TOOLS} AUTO_CLEAN)
 
-# copy license
-file(COPY ${SOURCE_PATH}/LICENSE DESTINATION ${CURRENT_PACKAGES_DIR}/share/libmysql)
-file(RENAME ${CURRENT_PACKAGES_DIR}/share/libmysql/LICENSE ${CURRENT_PACKAGES_DIR}/share/libmysql/copyright)
+file(REMOVE_RECURSE
+    "${CURRENT_PACKAGES_DIR}/debug/include"
+    "${CURRENT_PACKAGES_DIR}/debug/share"
+    "${CURRENT_PACKAGES_DIR}/lib/debug"
+)
+
+if (NOT VCPKG_TARGET_IS_WINDOWS)
+    set(MYSQL_CONFIG_FILE "${CURRENT_PACKAGES_DIR}/tools/libmysql/mysql_config")
+    vcpkg_replace_string("${MYSQL_CONFIG_FILE}" "/bin/mysql_.*config" "/tools/libmysql/mysql_.*config")
+    vcpkg_replace_string("${MYSQL_CONFIG_FILE}" "'${CURRENT_PACKAGES_DIR}" "\"\$basedir\"\'")
+endif()
+
+file(INSTALL "${CURRENT_PORT_DIR}/libmysql-config.cmake" DESTINATION "${CURRENT_PACKAGES_DIR}/share/${PORT}")
+file(INSTALL "${CURRENT_PORT_DIR}/usage" DESTINATION "${CURRENT_PACKAGES_DIR}/share/${PORT}")
+
+set(libedit_copying "${SOURCE_PATH}/COPYING for libedit")
+file(GLOB libedit_copying_infile "${SOURCE_PATH}/extra/libedit/libedit-*/COPYING")
+file(COPY_FILE "${libedit_copying_infile}" "${libedit_copying}")
+vcpkg_install_copyright(FILE_LIST "${SOURCE_PATH}/LICENSE" "${libedit_copying}")

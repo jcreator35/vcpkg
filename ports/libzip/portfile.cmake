@@ -1,46 +1,50 @@
-include(vcpkg_common_functions)
 vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
     REPO nih-at/libzip
-    REF rel-1-5-2
-    SHA512 5ba765c5d4ab47dff24bfa5e73b798046126fcc88b29d5d9ce9d77d035499ae91d90cc526f1f73bbefa07b7b68ff6cf77e912e5793859f801caaf2061cb20aee
+    REF "v${VERSION}"
+    SHA512 cf7795ba52685bfc90cf4a3f993d29d6e27eabaca486098e04971fca31ab90a887194e6a77a5a9e19ade1a1d0855400c8108aa79724618f4204b1ba8d5e42c9d
     HEAD_REF master
-	PATCHES avoid_computation_on_void_pointer.patch
+    PATCHES
+        fix-dependency.patch
+        use-requires.patch
+        initialize-have_dos_time.patch # https://github.com/nih-at/libzip/commit/aa3a6b4da7577de63581f8db2f9d2757481b4cc8
 )
 
-# AES encryption
-set(USE_OPENSSL OFF)
-if("openssl" IN_LIST FEATURES)
-    set(USE_OPENSSL ON)
-endif()
+vcpkg_check_features(
+    OUT_FEATURE_OPTIONS FEATURE_OPTIONS
+    FEATURES
+        bzip2 ENABLE_BZIP2
+        liblzma ENABLE_LZMA
+        zstd ENABLE_ZSTD
+        openssl ENABLE_OPENSSL
+        wincrypto ENABLE_WINDOWS_CRYPTO
+        commoncrypto ENABLE_COMMONCRYPTO
+        mbedtls ENABLE_MBEDTLS
+)
 
-set(USE_BZIP2 OFF)
-if("bzip2" IN_LIST FEATURES)
-    set(USE_BZIP2 ON)
-endif()
-
-vcpkg_configure_cmake(
-    SOURCE_PATH ${SOURCE_PATH}
-    PREFER_NINJA
+vcpkg_cmake_configure(
+    SOURCE_PATH "${SOURCE_PATH}"
     OPTIONS
+        ${FEATURE_OPTIONS}
         -DBUILD_DOC=OFF
         -DBUILD_EXAMPLES=OFF
         -DBUILD_REGRESS=OFF
         -DBUILD_TOOLS=OFF
-        # see https://github.com/nih-at/libzip/blob/rel-1-5-2/INSTALL.md
-        -DENABLE_OPENSSL=${USE_OPENSSL}
-        -DENABLE_BZIP2=${USE_BZIP2}
+        -DENABLE_GNUTLS=OFF
 )
 
-vcpkg_install_cmake()
+vcpkg_cmake_install()
+vcpkg_copy_pdbs()
+
+vcpkg_cmake_config_fixup(CONFIG_PATH lib/cmake/libzip)
+vcpkg_fixup_pkgconfig()
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/share")
 
 # Remove include directories from lib
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/lib/libzip ${CURRENT_PACKAGES_DIR}/debug/lib/libzip)
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/lib/libzip" "${CURRENT_PACKAGES_DIR}/debug/lib/libzip")
 
 # Remove debug include
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug/include)
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/include")
 
 # Copy copright information
-file(INSTALL ${SOURCE_PATH}/LICENSE DESTINATION ${CURRENT_PACKAGES_DIR}/share/libzip RENAME copyright)
-
-vcpkg_copy_pdbs()
+vcpkg_install_copyright(FILE_LIST "${SOURCE_PATH}/LICENSE")

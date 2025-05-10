@@ -1,23 +1,47 @@
-include(vcpkg_common_functions)
-
-vcpkg_check_linkage(ONLY_STATIC_LIBRARY ONLY_DYNAMIC_CRT)
-
 vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
-    REPO libimobiledevice-win32/libplist
-    REF 2.0.1.197
-    SHA512 55e1817c61d608b11646eb9c28c445f9ee801c7beb2121bd810235561117262adb73dbecb23b9ef5b0c54b0fc8089e0a46acc0e8f4845329a50a663ab004052c
-    HEAD_REF msvc-master
-    PATCHES dllexport.patch
+    REPO libimobiledevice/libplist
+    REF 2d8d7ef272db06783989f77ba1ed80aa0f4d2dfd # commits on 2023-06-15
+    SHA512 ec7c723ffb0492fe9901ee3854df16465e1b5b051cc8a716d89ff8fbf8f782134b7dda4d3a9656016fcf15c7cdf0eef7c80551b38a62317a11f056500e5c9ef4
+    HEAD_REF master
+    PATCHES
+        001_fix_static_build.patch
+        002_fix_api.patch
+        003_fix_msvc.patch
+        004_fix_tools_msvc.patch
 )
 
-set(ENV{_CL_} "$ENV{_CL_} /GL-")
-set(ENV{_LINK_} "$ENV{_LINK_} /LTCG:OFF")
+file(COPY "${CMAKE_CURRENT_LIST_DIR}/CMakeLists.txt" DESTINATION "${SOURCE_PATH}")
 
-vcpkg_install_msbuild(
-    SOURCE_PATH ${SOURCE_PATH}
-    PROJECT_SUBPATH libplist.sln
-    INCLUDES_SUBPATH include
-    LICENSE_SUBPATH COPYING.lesser
-    REMOVE_ROOT_INCLUDES
+vcpkg_check_features(OUT_FEATURE_OPTIONS FEATURE_OPTIONS
+    FEATURES
+        tools BUILD_TOOLS
 )
+
+vcpkg_cmake_configure(
+    SOURCE_PATH "${SOURCE_PATH}"
+    OPTIONS
+        ${FEATURE_OPTIONS}
+)
+
+vcpkg_cmake_install()
+vcpkg_cmake_config_fixup(PACKAGE_NAME unofficial-${PORT})
+vcpkg_fixup_pkgconfig()
+if("tools" IN_LIST FEATURES)
+    vcpkg_copy_tools(TOOL_NAMES plistutil AUTO_CLEAN)
+endif()
+
+if (VCPKG_LIBRARY_LINKAGE STREQUAL "static")
+    vcpkg_replace_string("${CURRENT_PACKAGES_DIR}/include/plist/plist.h"
+        "#ifdef LIBPLIST_STATIC" "#if 1"
+    )
+else()
+    vcpkg_replace_string("${CURRENT_PACKAGES_DIR}/include/plist/plist.h"
+        "#ifdef LIBPLIST_STATIC" "#if 0"
+    )
+endif()
+
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/include")
+
+vcpkg_install_copyright(FILE_LIST "${SOURCE_PATH}/COPYING")
+file(INSTALL "${CMAKE_CURRENT_LIST_DIR}/usage" DESTINATION "${CURRENT_PACKAGES_DIR}/share/${PORT}")

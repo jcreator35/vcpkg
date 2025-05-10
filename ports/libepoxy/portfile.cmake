@@ -1,23 +1,52 @@
-include(vcpkg_common_functions)
+if(VCPKG_TARGET_IS_WINDOWS)
+    vcpkg_check_linkage(ONLY_DYNAMIC_LIBRARY)
+endif()
 
-vcpkg_check_linkage(ONLY_DYNAMIC_LIBRARY)
+if (VCPKG_TARGET_IS_LINUX)
+    message(WARNING "${PORT} currently requires the following libraries from the system package manager:\n    libx11-dev\n    libgles2-mesa-dev\n\nThese can be installed on Ubuntu systems via apt-get install libx11-dev libgles2-mesa-dev.")
+endif()
 
 vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
     REPO anholt/libepoxy
-    REF 1.4.3
-    SHA512 41c7a4eea66c89346b0ec71407b2d22bf645ed0ef81ebad560370903f138ed48abb6bc6bcc88c75a3a05497acc6720397db828d61301599c05040263a9f4f7f0
-    HEAD_REF master)
+    REF 1.5.10
+    SHA512 6786f31c6e2865e68a90eb912900a86bf56fd3df4d78a477356886ac3b6ef52ac887b9c7a77aa027525f868ae9e88b12e5927ba56069c2e115acd631fca3abee
+    HEAD_REF master
+)
 
-vcpkg_configure_meson(SOURCE_PATH ${SOURCE_PATH}
+if (VCPKG_TARGET_IS_WINDOWS OR VCPKG_TARGET_IS_OSX)
+    set(OPTIONS -Dglx=no -Degl=no -Dx11=false)
+elseif(VCPKG_TARGET_IS_ANDROID)
+    set(OPTIONS -Dglx=no -Degl=yes -Dx11=false)
+else()
+    set(OPTIONS -Dglx=yes -Degl=yes -Dx11=true)
+endif()
+if(VCPKG_TARGET_IS_WINDOWS)
+    list(APPEND OPTIONS -Dc_std=c99)
+    if(VCPKG_LIBRARY_LINKAGE STREQUAL "static")
+        list(APPEND OPTIONS "-Dc_args=-DEPOXY_PUBLIC=extern")
+    endif()
+endif()
+
+vcpkg_configure_meson(
+    SOURCE_PATH "${SOURCE_PATH}"
     OPTIONS
-        -Denable-glx=no
-        -Denable-egl=no)
+        ${OPTIONS}
+        -Dtests=false
+)
 vcpkg_install_meson()
 vcpkg_copy_pdbs()
 
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/share/pkgconfig)
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug/share/pkgconfig)
+vcpkg_fixup_pkgconfig()
 
-file(COPY ${SOURCE_PATH}/COPYING DESTINATION ${CURRENT_PACKAGES_DIR}/share/libepoxy)
-file(RENAME ${CURRENT_PACKAGES_DIR}/share/libepoxy/COPYING ${CURRENT_PACKAGES_DIR}/share/libepoxy/copyright)
+if(VCPKG_TARGET_IS_WINDOWS)
+    vcpkg_replace_string("${CURRENT_PACKAGES_DIR}/include/epoxy/common.h" "# if defined(_MSC_VER)" "# if defined(_WIN32)")
+    if(VCPKG_LIBRARY_LINKAGE STREQUAL "static")
+        vcpkg_replace_string("${CURRENT_PACKAGES_DIR}/include/epoxy/common.h" "__declspec(dllimport)" "")
+    endif()
+endif()
+
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/share/pkgconfig")
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/share/pkgconfig")
+
+file(INSTALL "${SOURCE_PATH}/COPYING" DESTINATION "${CURRENT_PACKAGES_DIR}/share/${PORT}" RENAME copyright)

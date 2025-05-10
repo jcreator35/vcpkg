@@ -1,28 +1,97 @@
-include(vcpkg_common_functions)
+vcpkg_from_gitlab(
+    GITLAB_URL https://gitlab.gnome.org/
+    OUT_SOURCE_PATH SOURCE_PATH
+    REPO GNOME/gdk-pixbuf
+    REF "${VERSION}"
+    SHA512 f95c92974ed6efac9845790ef5c4ed74dd6e28b182ea3732013c46b016166e92f8bc10c1994358d79ff53e988c615c43cb1a2130c6ef531ef9d84c2fdcc87e52
+    HEAD_REF master
+    PATCHES
+        fix_build_error_windows.patch
+        loaders-cache.patch
+        use-libtiff-4-pkgconfig.patch
+        fix-static-deps.patch
+)
 
-vcpkg_check_linkage(ONLY_DYNAMIC_LIBRARY)
+if("introspection" IN_LIST FEATURES)
+    list(APPEND OPTIONS_RELEASE -Dintrospection=enabled)
+    vcpkg_get_gobject_introspection_programs(PYTHON3 GIR_COMPILER GIR_SCANNER)
+else()
+    list(APPEND OPTIONS_RELEASE -Dintrospection=disabled)
+endif()
 
-set(GDK_PIXBUF_VERSION 2.36)
-set(GDK_PIXBUF_PATCH 9)
-set(SOURCE_PATH ${CURRENT_BUILDTREES_DIR}/src/gdk-pixbuf-${GDK_PIXBUF_VERSION}.${GDK_PIXBUF_PATCH})
-vcpkg_download_distfile(ARCHIVE
-    URLS "http://ftp.gnome.org/pub/GNOME/sources/gdk-pixbuf/${GDK_PIXBUF_VERSION}/gdk-pixbuf-${GDK_PIXBUF_VERSION}.${GDK_PIXBUF_PATCH}.tar.xz"
-    FILENAME "gdk-pixbuf-${GDK_PIXBUF_VERSION}.${GDK_PIXBUF_PATCH}.tar.xz"
-    SHA512 ab8f2cda4490012936b094a1321e64b85e1fa1f8d070fae135a514f87f695201b845f4192e4a02954e2767d44314c0a95d727118853528182952d15890130261)
+if("png" IN_LIST FEATURES)
+    list(APPEND OPTIONS -Dpng=enabled)
+else()
+    list(APPEND OPTIONS -Dpng=disabled)
+endif()
 
-vcpkg_extract_source_archive(${ARCHIVE})
-file(COPY ${CMAKE_CURRENT_LIST_DIR}/CMakeLists.txt DESTINATION ${SOURCE_PATH})
+if("tiff" IN_LIST FEATURES)
+    list(APPEND OPTIONS -Dtiff=enabled)
+else()
+    list(APPEND OPTIONS -Dtiff=disabled)
+endif()
 
-vcpkg_configure_cmake(
-    SOURCE_PATH ${SOURCE_PATH}
-    PREFER_NINJA
+if("jpeg" IN_LIST FEATURES)
+    list(APPEND OPTIONS -Djpeg=enabled)
+else()
+    list(APPEND OPTIONS -Djpeg=disabled)
+endif()
+
+if("others" IN_LIST FEATURES)
+    list(APPEND OPTIONS -Dothers=enabled)
+else()
+    list(APPEND OPTIONS -Dothers=disabled)
+endif()
+
+# Whether to enable application bundle relocation support.
+# Limitation cf. gdk-pixbuf/gdk-pixbuf-io.c
+if(VCPKG_TARGET_IS_LINUX OR VCPKG_TARGET_IS_OSX OR VCPKG_TARGET_IS_WINDOWS)
+    list(APPEND OPTIONS -Drelocatable=true)          
+endif()
+
+if(VCPKG_TARGET_IS_WINDOWS)
+    #list(APPEND OPTIONS -Dnative_windows_loaders=true) # Use Windows system components to handle BMP, EMF, GIF, ICO, JPEG, TIFF and WMF images, overriding jpeg and tiff.  To build this into gdk-pixbuf, pass in windows" with the other loaders to build in or use "all" with the builtin_loaders option
+endif()
+vcpkg_configure_meson(
+    SOURCE_PATH "${SOURCE_PATH}"
+    OPTIONS
+        -Dman=false                 # Whether to generate man pages (requires xlstproc)
+        -Dgtk_doc=false             # Whether to generate the API reference (requires GTK-Doc)
+        -Ddocs=false
+        -Dtests=false
+        -Dinstalled_tests=false
+        -Dgio_sniffing=false        # Perform file type detection using GIO (Unused on MacOS and Windows)
+        -Dbuiltin_loaders=all       # since it is unclear where loadable plugins should be located;
+                                    # Comma-separated list of loaders to build into gdk-pixbuf, or "none", or "all" to build all buildable loaders into gdk-pixbuf
+        ${OPTIONS}
+    OPTIONS_RELEASE
+        ${OPTIONS_RELEASE}
     OPTIONS_DEBUG
-        -DGDK_SKIP_HEADERS=ON
-        -DGDK_SKIP_TOOLS=ON)
+        -Dintrospection=disabled
+    ADDITIONAL_BINARIES
+        glib-compile-resources='${CURRENT_HOST_INSTALLED_DIR}/tools/glib/glib-compile-resources'
+        glib-genmarshal='${CURRENT_HOST_INSTALLED_DIR}/tools/glib/glib-genmarshal'
+        glib-mkenums='${CURRENT_HOST_INSTALLED_DIR}/tools/glib/glib-mkenums'
+        "g-ir-compiler='${GIR_COMPILER}'"
+        "g-ir-scanner='${GIR_SCANNER}'"
+)
+vcpkg_install_meson(ADD_BIN_TO_PATH)
 
-vcpkg_install_cmake()
+vcpkg_replace_string("${CURRENT_PACKAGES_DIR}/lib/pkgconfig/gdk-pixbuf-2.0.pc" [[${bindir}]] "\${prefix}/tools/${PORT}")
+if(NOT VCPKG_BUILD_TYPE)
+    vcpkg_replace_string("${CURRENT_PACKAGES_DIR}/debug/lib/pkgconfig/gdk-pixbuf-2.0.pc" [[${bindir}]] "\${prefix}/../tools/${PORT}")
+endif()
+vcpkg_fixup_pkgconfig()
+
+set(TOOL_NAMES gdk-pixbuf-csource gdk-pixbuf-pixdata gdk-pixbuf-query-loaders)
+# gdk-pixbuf-thumbnailer is not compiled for cross-compiling
+# vcpkg-meson cross-build configuration differs from VCPKG_CROSSCOMPILING
+if(EXISTS "${CURRENT_PACKAGES_DIR}/bin/gdk-pixbuf-thumbnailer${VCPKG_TARGET_EXECUTABLE_SUFFIX}")
+    list(APPEND TOOL_NAMES gdk-pixbuf-thumbnailer)
+endif()
 vcpkg_copy_pdbs()
-vcpkg_copy_tool_dependencies(${CURRENT_PACKAGES_DIR}/tools/gdk-pixbuf)
+vcpkg_copy_tools(TOOL_NAMES ${TOOL_NAMES} AUTO_CLEAN)
 
-file(COPY ${SOURCE_PATH}/COPYING DESTINATION ${CURRENT_PACKAGES_DIR}/share/gdk-pixbuf)
-file(RENAME ${CURRENT_PACKAGES_DIR}/share/gdk-pixbuf/COPYING ${CURRENT_PACKAGES_DIR}/share/gdk-pixbuf/copyright)
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/share")
+
+vcpkg_install_copyright(FILE_LIST "${SOURCE_PATH}/COPYING")

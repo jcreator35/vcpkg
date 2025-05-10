@@ -1,36 +1,31 @@
-include(vcpkg_common_functions)
-
 vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
     REPO radarsat1/liblo
-    REF 0.29
-    SHA512 45648f2b2280e056b045dc0f08491baa7c154a983af95cf79438ac8fafd8f03a44c337a4beb0e01dce1f4d7352a03dc9088244d8db77dcdbfa6e39874dd6250f
+    REF c1a51bca21e8535ce77a9daf256f2e74c1a7e80f # 0.32
+    SHA512 baf7f11b5e03b01e1f01e6ff8984bc0cf1bb8f70df0dfe8d5f472dd06185997a93cf60e8fae0c54430c0c8f444084e926d41ca4e5291a191ebe4d8564d1854ad
     HEAD_REF master
 )
 
-vcpkg_configure_cmake(
-    SOURCE_PATH ${SOURCE_PATH}/cmake
-    PREFER_NINJA # Disable this option if project cannot be built with Ninja
-    OPTIONS -DTHREADING=1
+vcpkg_cmake_configure(
+    SOURCE_PATH "${SOURCE_PATH}/cmake"
+    OPTIONS -DTHREADING=1 -DWITH_STATIC=ON -DWITH_TESTS=OFF
 )
 
-vcpkg_install_cmake()
+vcpkg_cmake_install()
 
 # Install needed files into package directory
-vcpkg_fixup_cmake_targets(CONFIG_PATH lib/cmake/liblo)
+vcpkg_cmake_config_fixup(CONFIG_PATH lib/cmake/liblo)
 
-file(INSTALL ${CURRENT_PACKAGES_DIR}/bin/oscsend.exe DESTINATION ${CURRENT_PACKAGES_DIR}/tools/liblo)
-file(INSTALL ${CURRENT_PACKAGES_DIR}/bin/oscdump.exe DESTINATION ${CURRENT_PACKAGES_DIR}/tools/liblo)
-vcpkg_copy_tool_dependencies(${CURRENT_PACKAGES_DIR}/tools/liblo)
+vcpkg_copy_tools(TOOL_NAMES oscsend oscdump oscsendfile AUTO_CLEAN)
 
 # Remove unnecessary files
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug/include)
-file(REMOVE ${CURRENT_PACKAGES_DIR}/bin/oscsend.exe ${CURRENT_PACKAGES_DIR}/bin/oscdump.exe)
-file(REMOVE ${CURRENT_PACKAGES_DIR}/debug/bin/oscsend.exe ${CURRENT_PACKAGES_DIR}/debug/bin/oscdump.exe)
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/include")
 
 if(VCPKG_LIBRARY_LINKAGE STREQUAL static)
-    file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/bin ${CURRENT_PACKAGES_DIR}/debug/bin)
+    file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/bin" "${CURRENT_PACKAGES_DIR}/debug/bin")
 endif()
 
 # Handle copyright
-file(INSTALL ${SOURCE_PATH}/COPYING DESTINATION ${CURRENT_PACKAGES_DIR}/share/liblo RENAME copyright)
+file(INSTALL "${SOURCE_PATH}/COPYING" DESTINATION "${CURRENT_PACKAGES_DIR}/share/${PORT}" RENAME copyright)
+
+vcpkg_fixup_pkgconfig()

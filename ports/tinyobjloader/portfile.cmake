@@ -1,26 +1,35 @@
-include(vcpkg_common_functions)
-
 vcpkg_check_linkage(ONLY_STATIC_LIBRARY)
 
 vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
     REPO syoyo/tinyobjloader
-    REF v1.4.1
-    SHA512 5b18fed89435a95fb3fc89829ea6904b4cc4508b0907642b39194e3e3c55678ddc1c07687e4b7ea171f270f7188ca593ed53b828c022667e54a889c36c60373e
+    REF "v${VERSION}"
+    SHA512 724f3974e03c0bbb2255da051a42bec26a91e490414c36bd4bd5dd18a511ba821148e996f9fa4eba6c4b3638d331281a248c530389e2a8bf679b7e81bb09a89b
     HEAD_REF master
 )
 
-vcpkg_configure_cmake(
-    SOURCE_PATH "${SOURCE_PATH}"
-    PREFER_NINJA
-    OPTIONS
-        -DCMAKE_INSTALL_DOCDIR:STRING=share/tinyobjloader
+vcpkg_check_features(OUT_FEATURE_OPTIONS FEATURE_OPTIONS
+    FEATURES
+        double TINYOBJLOADER_USE_DOUBLE
 )
 
-vcpkg_install_cmake()
+vcpkg_cmake_configure(
+    SOURCE_PATH "${SOURCE_PATH}"
+    OPTIONS
+        -DCMAKE_INSTALL_DOCDIR:STRING=share/tinyobjloader
+        # FEATURES
+        ${FEATURE_OPTIONS}
+)
 
-vcpkg_fixup_cmake_targets(CONFIG_PATH "lib/tinyobjloader/cmake")
+vcpkg_cmake_install()
 
+vcpkg_cmake_config_fixup(CONFIG_PATH lib/tinyobjloader/cmake)
+
+if("double" IN_LIST FEATURES)
+    vcpkg_replace_string("${CURRENT_PACKAGES_DIR}/include/tiny_obj_loader.h" "#ifdef TINYOBJLOADER_USE_DOUBLE" "#if 1")
+else()
+    vcpkg_replace_string("${CURRENT_PACKAGES_DIR}/include/tiny_obj_loader.h" "#ifdef TINYOBJLOADER_USE_DOUBLE" "#if 0")
+endif()
 file(
     REMOVE_RECURSE
     ${CURRENT_PACKAGES_DIR}/debug/include
@@ -33,3 +42,5 @@ vcpkg_copy_pdbs()
 
 # Put the licence file where vcpkg expects it
 file(RENAME ${CURRENT_PACKAGES_DIR}/share/tinyobjloader/LICENSE ${CURRENT_PACKAGES_DIR}/share/tinyobjloader/copyright)
+
+vcpkg_fixup_pkgconfig()

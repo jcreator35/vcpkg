@@ -1,10 +1,8 @@
-include(vcpkg_common_functions)
-
 vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
     REPO zeromq/azmq
-    REF v1.0.2
-    SHA512 6e60a670d070ddf84dbd406e88225ff12f84ce39e0e64e9aff4314e174506c286d72cfebb5e2e51eab221f6e163a17cce539d052cea3c18954ec495b096f087b
+    REF 2c1adac46bced4eb74ed9be7c74563bb113eaacf
+    SHA512 4614b9e8f502da067231cf0ce2b645289fd1343b9bc46f1028fecb9dad4bb8a5190d723c3bf888a7c708b7b588b6c72f7e4da637f499389481b6cf80f4999671
     HEAD_REF master
 )
 
@@ -12,4 +10,4 @@ file(COPY ${SOURCE_PATH}/azmq DESTINATION ${CURRENT_PACKAGES_DIR}/include/)
 
 file(INSTALL
     ${SOURCE_PATH}/LICENSE-BOOST_1_0
-    DESTINATION ${CURRENT_PACKAGES_DIR}/share/azmq RENAME copyright)
+    DESTINATION ${CURRENT_PACKAGES_DIR}/share/${PORT} RENAME copyright)

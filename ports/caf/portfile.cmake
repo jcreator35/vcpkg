@@ -1,42 +1,35 @@
-include(vcpkg_common_functions)
-
-vcpkg_check_linkage(ONLY_STATIC_LIBRARY)
-
 vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
     REPO actor-framework/actor-framework
-    REF 2cc4377715afc3d3c35848f9d59b9e6876afd875
-    SHA512 7e7962bf5a30122bde8be63f6de0058f865bd890e2d10f4d90f4885b7953467fb6532f69c1a77a35802de7c531f6aac192a2993b53a8dc0b05f503c3f4083a31
-    HEAD_REF master
-	PATCHES
-		openssl-version-override.patch
+    REF "${VERSION}"
+    SHA512 496bca714b3d84dafe155f775229e1b6190aae092ab82f8c098af4b0268cd565b980624e93436f5ccba34bac350c62a03ff46b9bddaa1c9bc646d78a2338c53a
+    HEAD_REF main
+    PATCHES
+        fix_dependency.patch
+        fix_cxx17.patch
 )
 
-vcpkg_configure_cmake(
-    SOURCE_PATH ${SOURCE_PATH}
-    PREFER_NINJA
+vcpkg_cmake_configure(
+    SOURCE_PATH "${SOURCE_PATH}"
     OPTIONS
-        -DCMAKE_DISABLE_FIND_PACKAGE_Doxygen=ON
-        -DCAF_BUILD_STATIC=ON
-        -DCAF_BUILD_STATIC_ONLY=ON
-        -DCAF_NO_TOOLS=ON
-        -DCAF_NO_EXAMPLES=ON
-        -DCAF_NO_BENCHMARKS=ON
-        -DCAF_NO_UNIT_TESTS=ON
-        -DCAF_NO_PROTOBUF_EXAMPLES=ON
-        -DCAF_NO_QT_EXAMPLES=ON
-        -DCAF_NO_OPENCL=ON
-        -DCAF_NO_OPENSSL=OFF
-        -DCAF_NO_CURL_EXAMPLES=ON
-        -DCAF_OPENSSL_VERSION_OVERRIDE=ON
+        -DCAF_ENABLE_CURL_EXAMPLES=OFF
+        -DCAF_ENABLE_PROTOBUF_EXAMPLES=OFF
+        -DCAF_ENABLE_QT6_EXAMPLES=OFF
+        -DCAF_ENABLE_RUNTIME_CHECKS=OFF
+        -DCAF_ENABLE_ACTOR_PROFILER=OFF
+        -DCAF_ENABLE_EXAMPLES=OFF
+        -DCAF_ENABLE_TESTING=OFF
+        -DCAF_ENABLE_IO_MODULE=ON
+        -DCAF_ENABLE_EXCEPTIONS=ON
 )
 
-vcpkg_install_cmake()
+vcpkg_cmake_install()
 
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug/include ${CURRENT_PACKAGES_DIR}/debug/share)
-
-file(INSTALL
-    ${SOURCE_PATH}/LICENSE
-    DESTINATION ${CURRENT_PACKAGES_DIR}/share/caf RENAME copyright)
+vcpkg_cmake_config_fixup(PACKAGE_NAME CAF CONFIG_PATH lib/cmake/CAF)
 
 vcpkg_copy_pdbs()
+
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/include" "${CURRENT_PACKAGES_DIR}/debug/share")
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/include/caf/internal")
+
+vcpkg_install_copyright(FILE_LIST "${SOURCE_PATH}/LICENSE")

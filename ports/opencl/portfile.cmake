@@ -1,87 +1,90 @@
-include(vcpkg_common_functions)
-
-vcpkg_check_linkage(ONLY_DYNAMIC_LIBRARY)
-
-# OpenCL C headers
 vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
+    REPO KhronosGroup/OpenCL-SDK
+    REF "v${VERSION}"
+    SHA512 be396a7aad6251d9d1f1af265ecf20f3428d87610d680c14d92fb5b060a59ce8b8522135a0dd29eaf20e75683e45c1c8ea55035a7c3ec3eddc4bc7680d68b66e
+    HEAD_REF main
+    PATCHES
+        # see https://github.com/KhronosGroup/OpenCL-SDK/pull/88/files#r1905072265
+        001-remove-extra-install-rules.patch
+)
+
+vcpkg_from_github(
+    OUT_SOURCE_PATH OPENCL_HEADERS
     REPO KhronosGroup/OpenCL-Headers
-    REF f039db6764d52388658ef15c30b2237bbda49803
-    SHA512 5909a85f96477d731059528303435f06255e98ed8df9d4cd2b62c744b5fe41408c69c0d4068421a2813eb9ad9d70d7f1bace9ebf0db19cc09e71bb8066127c5f
-    HEAD_REF master
+    REF "v${VERSION}"
+    SHA512 9d2ed2a8346bc3f967989091d8cc36148ffe5ff13fe30e12354cc8321c09328bbe23e74817526b99002729c884438a3b1834e175a271f6d36e8341fd86fc1ad5
+    HEAD_REF main
 )
+if(NOT EXISTS "${SOURCE_PATH}/external/OpenCL-Headers/CMakeLists.txt")
+    file(REMOVE_RECURSE "${SOURCE_PATH}/external/OpenCL-Headers")
+    file(RENAME "${OPENCL_HEADERS}" "${SOURCE_PATH}/external/OpenCL-Headers")
+endif()
 
-file(INSTALL
-        "${SOURCE_PATH}/opencl22/CL"
-    DESTINATION
-        ${CURRENT_PACKAGES_DIR}/include
-)
-
-# OpenCL C++ headers
 vcpkg_from_github(
-    OUT_SOURCE_PATH SOURCE_PATH
+    OUT_SOURCE_PATH OPENCL_CLHPP
     REPO KhronosGroup/OpenCL-CLHPP
-    REF 5dd8bb9e32a8e2f72621566b296ac8143a554270
-    SHA512 2909fe2b979b52724ef8d285180d8bfd30bdd56cb79da4effc9e03b576ec7edb5497c99a9fa30541fe63037c84ddef21d4a73e7927f3813baab2a2afeecd55ab
-    HEAD_REF master
+    REF "v${VERSION}"
+    SHA512 7cdadc8ef182d1556346bd34b5a9ffe6e239ab61ec527e5609d69e1bcaf81a88f3fc534f5bdeed037236e1b0e61f1544d2a95c06df55f9cd8e03e13baf4143ba
+    HEAD_REF main
 )
+if(NOT EXISTS "${SOURCE_PATH}/external/OpenCL-CLHPP/CMakeLists.txt")
+    file(REMOVE_RECURSE "${SOURCE_PATH}/external/OpenCL-CLHPP")
+    file(RENAME "${OPENCL_CLHPP}" "${SOURCE_PATH}/external/OpenCL-CLHPP")
+endif()
 
-vcpkg_find_acquire_program(PYTHON3)
-
-vcpkg_execute_required_process(
-    COMMAND "${PYTHON3}" "${SOURCE_PATH}/gen_cl_hpp.py"
-        -i ${SOURCE_PATH}/input_cl.hpp
-        -o ${CURRENT_PACKAGES_DIR}/include/CL/cl.hpp
-    WORKING_DIRECTORY ${SOURCE_PATH}
-    LOGNAME generate_clhpp-${TARGET_TRIPLET}
-)
-
-vcpkg_execute_required_process(
-    COMMAND "${PYTHON3}" "${SOURCE_PATH}/gen_cl_hpp.py"
-        -i ${SOURCE_PATH}/input_cl2.hpp
-        -o ${CURRENT_PACKAGES_DIR}/include/CL/cl2.hpp
-    WORKING_DIRECTORY ${SOURCE_PATH}
-    LOGNAME generate_cl2hpp-${TARGET_TRIPLET}
-)
-message(STATUS "Generating OpenCL C++ headers done")
-
-# OpenCL ICD loader
 vcpkg_from_github(
-    OUT_SOURCE_PATH SOURCE_PATH
+    OUT_SOURCE_PATH OPENCL_ICD_LOADER
     REPO KhronosGroup/OpenCL-ICD-Loader
-    REF 26a38983cbe5824fd5be03eab8d037758fc44360
-    SHA512 3029f758ff0c39b57aa10d881af68e73532fd179c54063ed1d4529b7d6e27a5219e3c24b7fb5598d790ebcdc2441e00001a963671dc90fef2fc377c76d724f54
+    REF "v${VERSION}"
+    SHA512 29043eff21076440046314edf62bb488b7e4e17d9fbdac4c3727d8e2523c0c8fbf89ee7fcf762528af761ddbcb4be24e5f062ffa82f778401d6365faa35344a8
+    HEAD_REF main
+)
+if(NOT EXISTS "${SOURCE_PATH}/external/OpenCL-ICD-Loader/CMakeLists.txt")
+    file(REMOVE_RECURSE "${SOURCE_PATH}/external/OpenCL-ICD-Loader")
+    file(RENAME "${OPENCL_ICD_LOADER}" "${SOURCE_PATH}/external/OpenCL-ICD-Loader")
+endif()
+
+vcpkg_from_github(
+    OUT_SOURCE_PATH WHEREAMI
+    REPO gpakosz/whereami
+    REF f5e3eac441acbb4ec1fe3e2c32646248ae463398 # 2024-06-09
+    SHA512 d6fa8b6788cabdbb185a6ffba79c994762924a1c60595b769a7d3bb4a3ddf0f80cdeac7bd915cffa720f9123a720a1b7f0023fd7f2cf58906d15758529a99e2d
     HEAD_REF master
 )
 
-vcpkg_configure_cmake(
-    SOURCE_PATH ${SOURCE_PATH}
-    PREFER_NINJA
+vcpkg_cmake_configure(
+    SOURCE_PATH "${SOURCE_PATH}"
     OPTIONS
-        -DOPENCL_INCLUDE_DIRS=${CURRENT_PACKAGES_DIR}/include
+        "-DFETCHCONTENT_SOURCE_DIR_WHEREAMI-EXTERNAL=${WHEREAMI}"
+        -DBUILD_DOCS=OFF
+        -DBUILD_EXAMPLES=OFF
+        -DBUILD_TESTING=OFF
+        -DOPENCL_HEADERS_BUILD_CXX_TESTS=OFF
+        -DOPENCL_SDK_BUILD_SAMPLES=OFF
+)
+vcpkg_cmake_install()
+vcpkg_cmake_config_fixup(CONFIG_PATH "share/cmake/OpenCLHeaders" PACKAGE_NAME "OpenCLHeaders" DO_NOT_DELETE_PARENT_CONFIG_PATH)
+vcpkg_cmake_config_fixup(CONFIG_PATH "share/cmake/OpenCLICDLoader" PACKAGE_NAME "OpenCLICDLoader" DO_NOT_DELETE_PARENT_CONFIG_PATH)
+vcpkg_cmake_config_fixup(CONFIG_PATH "share/cmake/OpenCLHeadersCpp" PACKAGE_NAME "OpenCLHeadersCpp" DO_NOT_DELETE_PARENT_CONFIG_PATH)
+vcpkg_cmake_config_fixup(CONFIG_PATH "share/cmake/OpenCLUtils" PACKAGE_NAME "OpenCLUtils" DO_NOT_DELETE_PARENT_CONFIG_PATH)
+vcpkg_cmake_config_fixup(CONFIG_PATH "share/cmake/OpenCLUtilsCpp" PACKAGE_NAME "OpenCLUtilsCpp" DO_NOT_DELETE_PARENT_CONFIG_PATH)
+vcpkg_cmake_config_fixup(CONFIG_PATH "share/cmake/OpenCL" PACKAGE_NAME "opencl")
+vcpkg_fixup_pkgconfig()
+vcpkg_copy_pdbs()
+vcpkg_copy_tools(TOOL_NAMES cllayerinfo AUTO_CLEAN)
+
+file(REMOVE_RECURSE
+    "${CURRENT_PACKAGES_DIR}/debug/include"
+    "${CURRENT_PACKAGES_DIR}/debug/share"
 )
 
-vcpkg_build_cmake(TARGET OpenCL)
+configure_file("${CMAKE_CURRENT_LIST_DIR}/vcpkg-cmake-wrapper.cmake" "${CURRENT_PACKAGES_DIR}/share/${PORT}/vcpkg-cmake-wrapper.cmake" @ONLY)
 
-file(INSTALL
-        "${CURRENT_BUILDTREES_DIR}/${TARGET_TRIPLET}-rel/OpenCL.lib"
-    DESTINATION
-        ${CURRENT_PACKAGES_DIR}/lib
-)
-
-file(INSTALL
-        "${CURRENT_BUILDTREES_DIR}/${TARGET_TRIPLET}-dbg/OpenCL.lib"
-    DESTINATION
-        ${CURRENT_PACKAGES_DIR}/debug/lib
-)
-
-file(INSTALL
-        "${SOURCE_PATH}/LICENSE.txt"
-    DESTINATION
-        ${CURRENT_PACKAGES_DIR}/share/${PORT}/copyright
-)
-file(COPY
-        ${CMAKE_CURRENT_LIST_DIR}/usage
-    DESTINATION
-        ${CURRENT_PACKAGES_DIR}/share/${PORT}
-)
+file(COPY "${CMAKE_CURRENT_LIST_DIR}/usage" DESTINATION "${CURRENT_PACKAGES_DIR}/share/${PORT}")
+vcpkg_install_copyright(FILE_LIST "${SOURCE_PATH}/LICENSE" "${WHEREAMI}/LICENSE.MIT"
+    COMMENT [[
+The OpenCL SDK is licensed under the terms of the Apache-2.0 license.
+The OpenCL Utility Library uses code from https://github.com/gpakosz/whereami
+which is dual licensed under both the WTFPLv2 and MIT licenses.
+]])

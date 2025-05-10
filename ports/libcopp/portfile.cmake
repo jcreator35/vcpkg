@@ -1,31 +1,45 @@
-include(vcpkg_common_functions)
-
-vcpkg_check_linkage(ONLY_STATIC_LIBRARY)
-
 vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
-    REPO owt5008137/libcopp
-    REF 1.1.0
-    SHA512 27b444d158281786154830c6e216e701ba0301af1d7a08873b33e27ce3d2db6ddb4753239878633f4c2aed9f759b46f961408a2eb7b50b5d445c3531c1fa9546
+    REPO owent/libcopp
+    REF "v${VERSION}"
+    SHA512 91cc3ff6c99b11992a9cc90ac614d5b4a69f50e1e0b108ce2b12ca13616e5daa490f9f734a519b6da4984ba095efc2b4bdfadc28ee6ca38a255e5a6ce50ca427
     HEAD_REF v2
+    PATCHES fix-x86-windows.patch
 )
 
-# Use libcopp's own build process, skipping examples and tests
-vcpkg_configure_cmake(
-    SOURCE_PATH ${SOURCE_PATH}
+# atframework/cmake-toolset needed as a submodule for configure cmake
+vcpkg_from_github(
+  OUT_SOURCE_PATH ATFRAMEWORK_CMAKE_TOOLSET
+  REPO atframework/cmake-toolset
+  REF 311fe9150d23f163d1b27e5244a779b184901ee3 # v1.14.9-12-g311fe91
+  SHA512 769f8c25b05f93ee31e5b73c5453488379ad6d643be2fe8de2ac953b45f1e1716e842ccbcbd3e8978bdd0ae5a2c9ed679402e0dbcc159b284ad158525d1aa23e
+  HEAD_REF main
+  )
+
+vcpkg_list(SET options)
+if(VCPKG_TARGET_IS_ANDROID)
+    vcpkg_list(APPEND options
+        -DCMAKE_CXX_EXTENSIONS=OFF
+        -DCOMPILER_OPTION_CURRENT_MAX_CXX_STANDARD=20
+    )
+endif()
+
+vcpkg_cmake_configure(
+    SOURCE_PATH "${SOURCE_PATH}"
     DISABLE_PARALLEL_CONFIGURE
-    # PREFER_NINJA # Disabled because Ninja does not invoke masm correctly for this project
+    OPTIONS
+        ${options}
+        "-DATFRAMEWORK_CMAKE_TOOLSET_DIR=${ATFRAMEWORK_CMAKE_TOOLSET}"
 )
-vcpkg_install_cmake()
 
-file(MAKE_DIRECTORY ${CURRENT_PACKAGES_DIR}/share/libcopp)
-file(COPY ${CMAKE_CURRENT_LIST_DIR}/usage DESTINATION ${CURRENT_PACKAGES_DIR}/share/libcopp)
-file(COPY ${SOURCE_PATH}/LICENSE DESTINATION ${CURRENT_PACKAGES_DIR}/share/libcopp)
-file(COPY ${SOURCE_PATH}/BOOST_LICENSE_1_0.txt DESTINATION ${CURRENT_PACKAGES_DIR}/share/libcopp)
-file(COPY ${SOURCE_PATH}/LICENSE DESTINATION ${CURRENT_PACKAGES_DIR}/share/libcopp/copyright)
+vcpkg_cmake_install()
+
+vcpkg_install_copyright(FILE_LIST "${SOURCE_PATH}/BOOST_LICENSE_1_0.txt" "${SOURCE_PATH}/LICENSE")
 
 vcpkg_copy_pdbs()
 
-vcpkg_fixup_cmake_targets(CONFIG_PATH lib/cmake)
+vcpkg_cmake_config_fixup(CONFIG_PATH lib/cmake/libcopp)
+vcpkg_replace_string("${CURRENT_PACKAGES_DIR}/share/libcopp/libcopp-config.cmake" "set(\${CMAKE_FIND_PACKAGE_NAME}_SOURCE_DIR \"${SOURCE_PATH}\")" "")
 
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug/include)
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/include")
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/share")

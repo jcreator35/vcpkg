@@ -1,50 +1,54 @@
-include(vcpkg_common_functions)
-
-set(LIB_NAME nghttp2)
-set(LIB_VERSION 1.35.0)
-
-set(LIB_FILENAME ${LIB_NAME}-${LIB_VERSION}.tar.gz)
-set(SOURCE_PATH ${CURRENT_BUILDTREES_DIR}/src/${LIB_NAME}-${LIB_VERSION})
-
-vcpkg_download_distfile(ARCHIVE
-    URLS "https://github.com/nghttp2/nghttp2/releases/download/v${LIB_VERSION}/${LIB_FILENAME}"
-    FILENAME "${LIB_FILENAME}"
-    SHA512 65889545684e2c8b4aeeb7084ca36e3f78927fa2b6d1df906af3970d8ce6c7c6093b56a5e0713f7bb54a98f06ad52d6e2b323e760297610702afe526b0fdd577
-)
-vcpkg_extract_source_archive(${ARCHIVE})
-
-vcpkg_apply_patches(
-    SOURCE_PATH ${SOURCE_PATH}
-    PATCHES
-        "${CMAKE_CURRENT_LIST_DIR}/enable-static.patch"
+vcpkg_from_github(
+    OUT_SOURCE_PATH SOURCE_PATH
+    REPO nghttp2/nghttp2
+    REF "v${VERSION}"
+    SHA512 caadc645eea3769eecf5ed7efc72041fa069db4d8906861e2770965b3b5d5fc595a6160b2608d10f957efa89c1c31a55e3ef7fe8618a5a1973b0cc45a3f1dcef
+    HEAD_REF master
 )
 
-vcpkg_configure_cmake(
-    SOURCE_PATH ${SOURCE_PATH}
-    PREFER_NINJA
+string(COMPARE EQUAL "${VCPKG_CRT_LINKAGE}" "static" ENABLE_STATIC_CRT)
+string(COMPARE EQUAL "${VCPKG_LIBRARY_LINKAGE}" "static" ENABLE_STATIC_LIB)
+
+vcpkg_cmake_configure(
+    SOURCE_PATH "${SOURCE_PATH}"
     OPTIONS
         -DENABLE_LIB_ONLY=ON
-        -DENABLE_ASIO_LIB=OFF
+        -DENABLE_DOC=OFF
+        -DBUILD_TESTING=OFF
+        "-DENABLE_STATIC_CRT=${ENABLE_STATIC_CRT}"
+        "-DBUILD_STATIC_LIBS=${ENABLE_STATIC_LIB}"
+        -DCMAKE_DISABLE_FIND_PACKAGE_Python3=ON
+        -DCMAKE_DISABLE_FIND_PACKAGE_OpenSSL=ON
+        -DCMAKE_DISABLE_FIND_PACKAGE_Libngtcp2=ON
+        -DCMAKE_DISABLE_FIND_PACKAGE_Libngtcp2_crypto_quictls=ON
+        -DCMAKE_DISABLE_FIND_PACKAGE_Libnghttp3=ON
+        -DCMAKE_DISABLE_FIND_PACKAGE_Systemd=ON
+        -DCMAKE_DISABLE_FIND_PACKAGE_Jansson=ON
+        -DCMAKE_DISABLE_FIND_PACKAGE_Libevent=ON
+        -DCMAKE_DISABLE_FIND_PACKAGE_LibXml2=ON
+        -DCMAKE_DISABLE_FIND_PACKAGE_Jemalloc=ON
+    MAYBE_UNUSED_VARIABLES
+        CMAKE_DISABLE_FIND_PACKAGE_Libngtcp2_crypto_quictls
+        ENABLE_STATIC_CRT
+)
+vcpkg_cmake_install()
+vcpkg_copy_pdbs()
+vcpkg_fixup_pkgconfig()
+
+file(REMOVE_RECURSE
+    "${CURRENT_PACKAGES_DIR}/debug/include"
+    "${CURRENT_PACKAGES_DIR}/debug/share"
+    "${CURRENT_PACKAGES_DIR}/share/doc"
+    "${CURRENT_PACKAGES_DIR}/debug/lib/cmake"
+    "${CURRENT_PACKAGES_DIR}/lib/cmake"
 )
 
-vcpkg_install_cmake()
-
-# Remove unwanted files
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug/include)
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug/share)
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/share/man)
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/share/doc)
-
-# Move dll files from /lib to /bin where vcpkg expects them
-if(VCPKG_LIBRARY_LINKAGE STREQUAL "dynamic")
-    file(MAKE_DIRECTORY ${CURRENT_PACKAGES_DIR}/bin)
-    file(RENAME ${CURRENT_PACKAGES_DIR}/lib/${LIB_NAME}.dll ${CURRENT_PACKAGES_DIR}/bin/${LIB_NAME}.dll)
-
-    file(MAKE_DIRECTORY ${CURRENT_PACKAGES_DIR}/debug/bin)
-    file(RENAME ${CURRENT_PACKAGES_DIR}/debug/lib/${LIB_NAME}.dll ${CURRENT_PACKAGES_DIR}/debug/bin/${LIB_NAME}.dll)
+if(VCPKG_LIBRARY_LINKAGE STREQUAL static)
+    file(APPEND "${CURRENT_PACKAGES_DIR}/include/nghttp2/nghttp2ver.h" [[
+#ifndef NGHTTP2_STATICLIB
+#  define NGHTTP2_STATICLIB
+#endif
+]])
 endif()
 
-# License and man
-file(INSTALL ${SOURCE_PATH}/COPYING DESTINATION ${CURRENT_PACKAGES_DIR}/share/${LIB_NAME} RENAME copyright)
-
-vcpkg_copy_pdbs()
+vcpkg_install_copyright(FILE_LIST "${SOURCE_PATH}/COPYING")

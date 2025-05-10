@@ -1,23 +1,22 @@
-include(vcpkg_common_functions)
+vcpkg_check_linkage(ONLY_STATIC_LIBRARY)
 
 vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
     REPO ArtifexSoftware/jbig2dec
-    REF 0.13
-    SHA512 11d1209810d6c80a095ec59d6af44010d4664f4ba744c0c14bdad9564359cf31dd0095b072fa63de381f2de57116e523883aa8843cc8d9baa2c3a8b9b1fc3527
+    REF "${VERSION}"
+    SHA512 8b8a28b93b23e4284ca229e6c8935fd161ce5c597f7470a46ec06a3241d0ac23cf921aecdd4e0c1bd3c904591409054236f2ce25b6d8ae40db742559c7f4dbe9
     HEAD_REF master
 )
 
-file(COPY ${CMAKE_CURRENT_LIST_DIR}/CMakeLists.txt DESTINATION ${SOURCE_PATH})
+file(COPY "${CMAKE_CURRENT_LIST_DIR}/CMakeLists.txt" DESTINATION "${SOURCE_PATH}")
 
-vcpkg_configure_cmake(
-    SOURCE_PATH ${SOURCE_PATH}
-    PREFER_NINJA
+vcpkg_cmake_configure(
+    SOURCE_PATH "${SOURCE_PATH}"
     OPTIONS_DEBUG
         -DDISABLE_INSTALL_HEADERS=1
 )
 
-vcpkg_install_cmake()
+vcpkg_cmake_install()
 
 # Handle copyright
-file(INSTALL ${SOURCE_PATH}/COPYING DESTINATION ${CURRENT_PACKAGES_DIR}/share/jbig2dec RENAME copyright)
+file(INSTALL "${SOURCE_PATH}/COPYING" DESTINATION "${CURRENT_PACKAGES_DIR}/share/${PORT}" RENAME copyright)

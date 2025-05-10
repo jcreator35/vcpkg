@@ -1,21 +1,72 @@
-include(vcpkg_common_functions)
 
-vcpkg_from_github(
-    OUT_SOURCE_PATH SOURCE_PATH
-    REPO Microsoft/cppwinrt
-    REF fall_2017_creators_update_for_vs_15.3
-    SHA512 e3f987ed3f3dce019b8bf9f5451e53b42357473a003b8c14f9009e1848ee0463286bd46fdc3c739c8f7c2d232707e8018f5c087ffae784c745d51a8143f9a294
-    HEAD_REF master
+vcpkg_download_distfile(ARCHIVE
+    URLS "https://www.nuget.org/api/v2/package/Microsoft.Windows.CppWinRT/${VERSION}"
+    FILENAME "cppwinrt.${VERSION}.zip"
+    SHA512 74460c233655e180dcceebdf16ad2d2f19d178c7c592c0677c623361558126930581556e39f6e12bd8ac4f57792be2d3f1b80188ef1a5de7cd7e8c72b7d598c1
 )
 
-# Put the licence file where vcpkg expects it
-file(COPY ${SOURCE_PATH}/LICENSE DESTINATION ${CURRENT_PACKAGES_DIR}/share/cppwinrt)
-file(RENAME ${CURRENT_PACKAGES_DIR}/share/cppwinrt/LICENSE ${CURRENT_PACKAGES_DIR}/share/cppwinrt/copyright)
-
-# Copy the cppwinrt header files
-file(GLOB HEADER_FILES ${SOURCE_PATH}/10.0.16299.0/winrt/*)
-file(
-    COPY ${HEADER_FILES}
-    DESTINATION ${CURRENT_PACKAGES_DIR}/include/winrt
-    REGEX "\.(gitattributes|gitignore)$" EXCLUDE
+vcpkg_extract_source_archive(
+    src
+    ARCHIVE "${ARCHIVE}"
+    NO_REMOVE_ONE_LEVEL
 )
+
+if(VCPKG_TARGET_ARCHITECTURE STREQUAL "x86")
+    set(CPPWINRT_ARCH win32)
+else()
+    set(CPPWINRT_ARCH ${VCPKG_TARGET_ARCHITECTURE})
+endif()
+
+set(CPPWINRT_TOOL "${src}/bin/cppwinrt.exe")
+
+#--- Find Windows SDK Version
+if (NOT EXISTS "$ENV{WindowsSDKDir}/Lib/$ENV{WindowsSDKVersion}.")
+    message(FATAL_ERROR "ERROR: Cannot locate the Windows SDK. Please define %WindowsSDKDir% and %WindowsSDKVersion%.
+(Expected file to exist: $ENV{WindowsSDKDir}/Lib/$ENV{WindowsSDKVersion})")
+endif()
+if (NOT EXISTS "$ENV{WindowsSDKDir}References/$ENV{WindowsSDKVersion}Windows.Foundation.FoundationContract")
+    message(FATAL_ERROR "ERROR: The Windows SDK is too old (needs 14393 or later, found $ENV{WindowsSDKVersion}).")
+endif()
+
+file(TO_CMAKE_PATH "$ENV{WindowsSDKDir}References/$ENV{WindowsSDKVersion}" winsdk)
+
+file(GLOB winmds "${winsdk}/*/*/*.winmd")
+
+#--- Create response file
+set(args "")
+foreach(winmd IN LISTS winmds)
+    string(APPEND args "-input \"${winmd}\"\n")
+endforeach()
+
+file(REMOVE_RECURSE "${CURRENT_BUILDTREES_DIR}/${TARGET_TRIPLET}")
+file(MAKE_DIRECTORY "${CURRENT_BUILDTREES_DIR}/${TARGET_TRIPLET}")
+file(WRITE "${CURRENT_BUILDTREES_DIR}/${TARGET_TRIPLET}/cppwinrt.rsp" "${args}")
+
+#--- Generate headers
+string(REGEX MATCH "[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+" SDKVersion $ENV{WindowsSDKVersion})
+message(STATUS "Generating headers for Windows SDK ${SDKVersion}")
+vcpkg_execute_required_process(
+    COMMAND "${CPPWINRT_TOOL}"
+        "@${CURRENT_BUILDTREES_DIR}/${TARGET_TRIPLET}/cppwinrt.rsp"
+        -output "${CURRENT_PACKAGES_DIR}/include"
+        -verbose
+    WORKING_DIRECTORY "${CURRENT_PACKAGES_DIR}"
+    LOGNAME "cppwinrt-generate-${TARGET_TRIPLET}"
+)
+
+set(CPPWINRT_LIB "${src}/build/native/lib/${CPPWINRT_ARCH}/cppwinrt_fast_forwarder.lib")
+file(INSTALL "${CPPWINRT_LIB}" DESTINATION "${CURRENT_PACKAGES_DIR}/lib")
+if(NOT DEFINED VCPKG_BUILD_TYPE)
+    file(INSTALL "${CPPWINRT_LIB}" DESTINATION "${CURRENT_PACKAGES_DIR}/debug/lib")
+endif()
+file(INSTALL "${CPPWINRT_TOOL}" DESTINATION "${CURRENT_PACKAGES_DIR}/tools/cppwinrt")
+
+set(tool_path "tools/cppwinrt/cppwinrt.exe")
+set(lib_name "cppwinrt_fast_forwarder.lib")
+
+configure_file("${CMAKE_CURRENT_LIST_DIR}/cppwinrt-config.cmake.in"
+  "${CURRENT_PACKAGES_DIR}/share/${PORT}/${PORT}-config.cmake"
+  @ONLY)
+
+file(INSTALL "${CMAKE_CURRENT_LIST_DIR}/usage" DESTINATION "${CURRENT_PACKAGES_DIR}/share/${PORT}")
+vcpkg_install_copyright(FILE_LIST "${src}/LICENSE")

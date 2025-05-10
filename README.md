@@ -1,72 +1,147 @@
-# Vcpkg
+<!-- 
+This document is a copy of the README file on the Microsoft/vcpkg-docs repository.
 
-## Overview
-Vcpkg helps you manage C and C++ libraries on Windows, Linux and MacOS. This tool and ecosystem are constantly evolving; your involvement is vital to its success!
+To make changes modify this file instead:
+https://github.com/microsoft/vcpkg-docs/blob/main/vcpkg/readme/vcpkg-README.md
+-->
 
-For short description of available commands, run `vcpkg help`.
+[🌐 Read in a different language](https://learn.microsoft.com/locale/?target=https%3A%2F%2Flearn.microsoft.com%2Fvcpkg%2F)
 
-## Quick Start
-Prerequisites:
-- Windows 10, 8.1, 7, Linux, or MacOS
-- Visual Studio 2015 Update 3 or newer (on Windows)
-- Git
-- *Optional:* CMake 3.12.4
+# vcpkg overview
 
-To get started:
+vcpkg is a free and open-source C/C++ package manager maintained by Microsoft
+and the C++ community. 
+
+Initially launched in 2016 as a tool for assisting developers in migrating their
+projects to newer versions of Visual Studio, vcpkg has evolved into a
+cross-platform tool used by developers on Windows, macOS, and Linux. vcpkg has a
+large collection of open-source libraries and enterprise-ready features designed to
+facilitate your development process with support for any build and project
+systems. vcpkg is a C++ tool at heart and is written in C++ with scripts in
+CMake. It is designed from the ground up to address the unique pain points C/C++
+developers experience.
+
+This tool and ecosystem are constantly evolving, and we always appreciate
+contributions! Learn how to start contributing with our [packaging
+tutorial](https://learn.microsoft.com/vcpkg/get_started/get-started-adding-to-registry) and [maintainer
+guide](https://learn.microsoft.com/vcpkg/contributing/maintainer-guide).
+
+# Get started
+
+First, follow one of our quick start guides.
+
+Whether you're using CMake, MSBuild, or any other build system, vcpkg has you covered:
+
+* [vcpkg with CMake](https://learn.microsoft.com/vcpkg/get_started/get-started)
+* [vcpkg with MSBuild](https://learn.microsoft.com/vcpkg/get_started/get-started-msbuild)
+* [vcpkg with other build systems](https://learn.microsoft.com/vcpkg/users/buildsystems/manual-integration)
+
+You can also use any editor:
+
+* [vcpkg with Visual Studio](https://learn.microsoft.com/vcpkg/get_started/get-started-vs)
+* [vcpkg with Visual Studio Code](https://learn.microsoft.com/vcpkg/get_started/get-started-vscode)
+* [vcpkg with
+  CLion](<https://www.jetbrains.com/help/clion/package-management.html>)
+* [vcpkg with Qt Creator](<https://doc.qt.io/qtcreator/creator-vcpkg.html>)
+
+If a library you need is not present in the vcpkg registry, [open an issue on
+the GitHub repository][contributing:submit-issue] or [contribute the package
+yourself](https://learn.microsoft.com/vcpkg/get_started/get-started-adding-to-registry).
+
+After you've gotten vcpkg installed and working, you may wish to [add
+tab completion to your terminal](https://learn.microsoft.com/vcpkg/commands/integrate#vcpkg-autocompletion).
+
+# Use vcpkg
+
+Create a [manifest for your project's dependencies](https://learn.microsoft.com/vcpkg/consume/manifest-mode):
+
+```Console
+vcpkg new --application
+vcpkg add port fmt
 ```
-> git clone https://github.com/Microsoft/vcpkg.git
-> cd vcpkg
 
-PS> .\bootstrap-vcpkg.bat
-Linux:~/$ ./bootstrap-vcpkg.sh
+Or [install packages through the command line](https://learn.microsoft.com/vcpkg/consume/classic-mode):
+
+```Console
+vcpkg install fmt
 ```
 
-Then, to hook up user-wide [integration](docs/users/integration.md), run (note: requires admin on first use)
-```
-PS> .\vcpkg integrate install
-Linux:~/$ ./vcpkg integrate install
-```
+Then use one of our available integrations for
+[CMake](https://learn.microsoft.com/vcpkg/concepts/build-system-integration#cmake-integration),
+[MSBuild](https://learn.microsoft.com/vcpkg/concepts/build-system-integration#msbuild-integration) or 
+[other build
+systems](https://learn.microsoft.com/vcpkg/concepts/build-system-integration#manual-integration).
 
-Install any packages with
-```
-PS> .\vcpkg install sdl2 curl
-Linux:~/$ ./vcpkg install sdl2 curl
-```
+For a short description of all available commands, run `vcpkg help`.
+Run `vcpkg help [topic]` for details on a specific topic.
 
-The best way to use installed libraries with CMake is via the toolchain file `scripts\buildsystems\vcpkg.cmake`. To use this file, you simply need to add it onto your CMake command line as `-DCMAKE_TOOLCHAIN_FILE=[vcpkg root]\scripts\buildsystems\vcpkg.cmake`.
+# Key features
 
-In Visual Studio, you can create a New Project (or open an existing one). All installed libraries are immediately ready to be `#include`'d and used in your project without additional configuration.
+vcpkg offers powerful features for your package management needs:
 
-For more information, see our [using a package](docs/examples/installing-and-using-packages.md) example for the specifics.
+* [easily integrate with your build system](https://learn.microsoft.com/vcpkg/concepts/build-system-integration)
+* [control the versions of your dependencies](https://learn.microsoft.com/vcpkg/users/versioning)
+* [package and publish your own packages](https://learn.microsoft.com/vcpkg/concepts/registries)
+* [reuse your binary artifacts](https://learn.microsoft.com/vcpkg/users/binarycaching)
+* [enable offline scenarios with asset caching](https://learn.microsoft.com/vcpkg/concepts/asset-caching)
 
-Additional notes on macOS and Linux support can be found in the [official announcement](https://blogs.msdn.microsoft.com/vcblog/2018/04/24/announcing-a-single-c-library-manager-for-linux-macos-and-windows-vcpkg/).
+# Contribute
 
-## Tab-Completion / Auto-Completion
-`vcpkg` supports auto-completion of commands, package names, options etc in Powershell and bash. To enable tab-completion, use one of the following:
-```
-PS> .\vcpkg integrate powershell
-Linux:~/$ ./vcpkg integrate bash
-```
-and restart your console.
+vcpkg is an open source project, and is thus built with your contributions. Here
+are some ways you can contribute:
 
+* [Submit issues][contributing:submit-issue] in vcpkg or existing packages
+* [Submit fixes and new packages][contributing:submit-pr]
 
-## Examples
-See the [documentation](docs/index.md) for specific walkthroughs, including [installing and using a package](docs/examples/installing-and-using-packages.md), [adding a new package from a zipfile](docs/examples/packaging-zipfiles.md), and [adding a new package from a GitHub repo](docs/examples/packaging-github-repos.md).
+Please refer to our [mantainer guide](https://learn.microsoft.com/vcpkg/contributing/maintainer-guide) and
+[packaging tutorial](https://learn.microsoft.com/vcpkg/get_started/get-started-packaging) for more details.
 
-Our docs are now also available online at ReadTheDocs: <https://vcpkg.readthedocs.io/>!
+This project has adopted the [Microsoft Open Source Code of
+Conduct][contributing:coc]. For more information see the [Code of Conduct
+FAQ][contributing:coc-faq] or email
+[opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional
+questions or comments.
+ 
+[contributing:submit-issue]: https://github.com/microsoft/vcpkg/issues/new/choose
+[contributing:submit-pr]: https://github.com/microsoft/vcpkg/pulls
+[contributing:coc]: https://opensource.microsoft.com/codeofconduct/
+[contributing:coc-faq]: https://opensource.microsoft.com/codeofconduct/
+  
+# Resources
 
-See a 4 minute [video demo](https://www.youtube.com/watch?v=y41WFKbQFTw).
+* Ports: [Microsoft/vcpkg](<https://github.com/microsoft/vcpkg>)
+* Source code: [Microsoft/vcpkg-tool](<https://github.com/microsoft/vcpkg-tool>)
+* Docs: [Microsoft Learn | vcpkg](https://learn.microsoft.com/vcpkg)
+* Website: [vcpkg.io](<https://vcpkg.io>)
+* Email: [vcpkg@microsoft.com](<mailto:vcpkg@microsoft.com>)
+* Discord: [\#include \<C++\>'s Discord server](<https://www.includecpp.org>), in the #🌏vcpkg channel
+* Slack: [C++ Alliance's Slack server](<https://cppalliance.org/slack/>), in the #vcpkg channel
 
-## Contributing
-Vcpkg is built with your contributions. Here are some ways you can contribute:
+# License
 
-* [Submit Issues](https://github.com/Microsoft/vcpkg/issues) in vcpkg or existing packages
-* [Submit Fixes and New Packages](https://github.com/Microsoft/vcpkg/pulls)
+The code in this repository is licensed under the MIT License. The libraries
+provided by ports are licensed under the terms of their original authors. Where
+available, vcpkg places the associated license(s) in the location
+[`installed/<triplet>/share/<port>/copyright`](https://learn.microsoft.com/vcpkg/contributing/maintainer-guide#install-copyright-file).
 
-Please refer to our [Contribution guidelines](CONTRIBUTING.md) for more details.
+# Security
 
-This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/). For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.
+Most ports in vcpkg build the libraries in question using the original build
+system preferred by the original developers of those libraries, and download
+source code and build tools from their official distribution locations. For use
+behind a firewall, the specific access needed will depend on which ports are
+being installed. If you must install it in an "air gapped" environment, consider
+instaling once in a non-"air gapped" environment, populating an [asset
+cache](https://learn.microsoft.com/vcpkg/users/assetcaching) shared with the otherwise "air gapped"
+environment.
 
-## License
+# Telemetry
 
-Code licensed under the [MIT License](LICENSE.txt).
+vcpkg collects usage data in order to help us improve your experience. The data
+collected by Microsoft is anonymous. You can opt-out of telemetry by:
+
+- running the bootstrap-vcpkg script with `-disableMetrics`
+- passing `--disable-metrics` to vcpkg on the command line
+- setting the `VCPKG_DISABLE_METRICS` environment variable
+
+Read more about vcpkg telemetry at [https://learn.microsoft.com/vcpkg/about/privacy](https://learn.microsoft.com/vcpkg/about/privacy).

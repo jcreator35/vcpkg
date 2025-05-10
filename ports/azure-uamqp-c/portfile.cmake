@@ -1,43 +1,31 @@
-include(vcpkg_common_functions)
-
 vcpkg_check_linkage(ONLY_STATIC_LIBRARY)
 
-if("public-preview" IN_LIST FEATURES)
-    vcpkg_from_github(
-        OUT_SOURCE_PATH SOURCE_PATH
-        REPO Azure/azure-uamqp-c
-        REF 13f009ddd50a2837f651b0237de17db5f24c3af9
-        SHA512 649e1826c02a25c57031e1cf1ae92ff15f7caadd064d1dff4aa4ee579598af58ae03f778138cdf26918c1500ca1b8678a6f88c0ae24fd6fca37dab7b81b34984
-        HEAD_REF master
-    )
-else()
-    vcpkg_from_github(
-        OUT_SOURCE_PATH SOURCE_PATH
-        REPO Azure/azure-uamqp-c
-        REF 13f009ddd50a2837f651b0237de17db5f24c3af9
-        SHA512 649e1826c02a25c57031e1cf1ae92ff15f7caadd064d1dff4aa4ee579598af58ae03f778138cdf26918c1500ca1b8678a6f88c0ae24fd6fca37dab7b81b34984
-        HEAD_REF master
-    )
-endif()
+vcpkg_from_github(
+    OUT_SOURCE_PATH SOURCE_PATH
+    REPO Azure/azure-uamqp-c
+    REF 6bb9accbbc036ed5ef1df7467760762c99a7094b
+    SHA512 99ed5fef76a0e0b2482862f46715431f98381923670be42edc8d4f7e066c0dcb9f397be73f96eccbbd697ae98f2604cb7b6f603f7c1d358ada50dc68349331ef
+    HEAD_REF master
+)
 
 file(COPY ${CURRENT_INSTALLED_DIR}/share/azure-c-shared-utility/azure_iot_build_rules.cmake DESTINATION ${SOURCE_PATH}/deps/azure-c-shared-utility/configs/)
 
-vcpkg_configure_cmake(
-    SOURCE_PATH ${SOURCE_PATH}
-    PREFER_NINJA
+vcpkg_cmake_configure(
+    SOURCE_PATH "${SOURCE_PATH}"
     OPTIONS
         -Dskip_samples=ON
         -Duse_installed_dependencies=ON
         -Dbuild_as_dynamic=OFF
+    MAYBE_UNUSED_VARIABLES
+        build_as_dynamic
 )
 
-vcpkg_install_cmake()
+vcpkg_cmake_install()
 
-vcpkg_fixup_cmake_targets(CONFIG_PATH cmake TARGET_PATH share/uamqp)
+vcpkg_cmake_config_fixup(PACKAGE_NAME uamqp CONFIG_PATH "cmake")
 
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug/include ${CURRENT_PACKAGES_DIR}/debug/share)
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/include" "${CURRENT_PACKAGES_DIR}/debug/share")
 
-configure_file(${SOURCE_PATH}/LICENSE ${CURRENT_PACKAGES_DIR}/share/azure-uamqp-c/copyright COPYONLY)
+configure_file("${SOURCE_PATH}/LICENSE" "${CURRENT_PACKAGES_DIR}/share/${PORT}/copyright" COPYONLY)
 
 vcpkg_copy_pdbs()
-

@@ -1,28 +1,29 @@
-include(vcpkg_common_functions)
-
 vcpkg_from_bitbucket(
     OUT_SOURCE_PATH SOURCE_PATH
     REPO blaze-lib/blaze
-    REF cac64f2b35002f74a8ad2410ce6fb562b2cd2371
-    SHA512 89381d77e518cdea40b0aa5013b8c74cbd737a2ce8d2d6869df1789a8154d2170c692ce04cae907704808fcff4a52fe0860d3fa2ee898780ce650a294b10894f
+    REF "v${VERSION}"
+    SHA512 9786628159991f547902ceb44a159f0ba84d08be16ccc45bfb9aad3cfbf16eaede4ea43d2d4981d420a8a387a07721b113754f6038a6db2d9c7ed2ea967b5361
     HEAD_REF master
-    PATCHES
-        avoid-src-dir-generation.patch
 )
 
-vcpkg_configure_cmake(
-    SOURCE_PATH ${SOURCE_PATH}
-    PREFER_NINJA
+vcpkg_check_features(OUT_FEATURE_OPTIONS FEATURE_OPTIONS
+    FEATURES
+        lapack   USE_LAPACK
+        openmp   BLAZE_SHARED_MEMORY_PARALLELIZATION
+)
+
+vcpkg_cmake_configure(
+    SOURCE_PATH "${SOURCE_PATH}"
     OPTIONS
-        -DBLAZE_SMP_THREADS=C++11
+        ${FEATURE_OPTIONS}
+        -DBLAZE_SMP_THREADS=OpenMP
 )
 
-vcpkg_install_cmake()
+vcpkg_cmake_install()
 
-vcpkg_fixup_cmake_targets(CONFIG_PATH share/blaze/cmake)
+vcpkg_cmake_config_fixup(CONFIG_PATH share/blaze/cmake)
 
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug)
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug")
 
 # Handle copyright
-file(COPY ${SOURCE_PATH}/LICENSE DESTINATION ${CURRENT_PACKAGES_DIR}/share/blaze)
-file(RENAME ${CURRENT_PACKAGES_DIR}/share/blaze/LICENSE ${CURRENT_PACKAGES_DIR}/share/blaze/copyright)
+vcpkg_install_copyright(FILE_LIST "${SOURCE_PATH}/LICENSE")

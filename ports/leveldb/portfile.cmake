@@ -1,27 +1,40 @@
-include(vcpkg_common_functions)
-
 vcpkg_check_linkage(ONLY_STATIC_LIBRARY)
 
 vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
-    BRANCH "bitcoin-fork"
-    REPO "bitcoin-core/leveldb"
-    REF "8b1cd3753b184341e837b30383832645135d3d73"
-    SHA512  f5ad5fd21fb28ee052a4f3873abd58dab508c71621bcd482ab9e6ef4b57eca182c81502ddfe59736f5b2a54f2d05b397dd15982b3bd5d9039cd481eae3c7b958
+    REPO google/leveldb
+    REF "${VERSION}"
+    SHA512 ac15eac29387b9f702a901b6567d47a9f8c17cf5c7d8700a77ec771da25158c83b04959c33f3d4de7a3f033ef08f545d14ba823a8d527e21889c4b78065b0f84
+    HEAD_REF master
+    PATCHES
+        fix-dependencies.patch
+        fix-util-install.patch
 )
 
-vcpkg_apply_patches(SOURCE_PATH ${SOURCE_PATH}
-    PATCHES ${CMAKE_CURRENT_LIST_DIR}/msvc_code_fix.diff)
+file(COPY "${CURRENT_PORT_DIR}/leveldbConfig.cmake.in" DESTINATION "${SOURCE_PATH}/cmake")
 
-file(COPY ${CMAKE_CURRENT_LIST_DIR}/CMakeLists.txt DESTINATION ${SOURCE_PATH})
-
-vcpkg_configure_cmake(
-    SOURCE_PATH ${SOURCE_PATH}
-    PREFER_NINJA # Disable this option if project cannot be built with Ninja
-    OPTIONS_DEBUG -DINSTALL_HEADERS=OFF
+vcpkg_check_features(OUT_FEATURE_OPTIONS FEATURE_OPTIONS
+    FEATURES
+        crc32c WITH_CRC32C
+        snappy WITH_SNAPPY
 )
 
-vcpkg_install_cmake()
+vcpkg_cmake_configure(
+    SOURCE_PATH "${SOURCE_PATH}"
+    OPTIONS
+        ${FEATURE_OPTIONS}
+        -DLEVELDB_BUILD_TESTS=OFF
+        -DLEVELDB_BUILD_BENCHMARKS=OFF
+    OPTIONS_DEBUG
+        -DINSTALL_HEADERS=OFF
+)
 
-# Handle copyright
-file(INSTALL ${SOURCE_PATH}/LICENSE DESTINATION ${CURRENT_PACKAGES_DIR}/share/leveldb RENAME copyright)
+vcpkg_cmake_install()
+
+vcpkg_cmake_config_fixup(CONFIG_PATH "lib/cmake/${PORT}")
+
+
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/include")
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/share")
+
+vcpkg_install_copyright(FILE_LIST "${SOURCE_PATH}/LICENSE")

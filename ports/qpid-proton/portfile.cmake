@@ -1,43 +1,69 @@
-include(vcpkg_common_functions)
+vcpkg_check_linkage(ONLY_DYNAMIC_LIBRARY)
 
-vcpkg_check_linkage(ONLY_DYNAMIC_LIBRARY ONLY_DYNAMIC_CRT)
-
-# Use this throughout rather than literal string
-set(QPID_PROTON_VERSION 0.24.0)
-vcpkg_find_acquire_program(PYTHON2)
-
-# Go grab the code. Set SHA512 to 1 to get correct sha from download
 vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
     REPO apache/qpid-proton
-    REF ${QPID_PROTON_VERSION}
-    SHA512 a22154d5ea96330e22245a54233101256f02d10ee814a7f0f4b654e56128615acee0cfc0387cbec9b877dd20cc23a5b1635aa9e1d1b60a4b9aa985e449dcb62e
+    REF "${VERSION}"
+    SHA512 05c3fded3db1fae0e6a7b9fbe34fe17af41a676a584ee916cbbeb82e957d7da74861524c5db06634326c403fabc82fddf938d018d9383745a6ce0cbc7a9eada3 
     HEAD_REF next
+    PATCHES
+        fix-dependencies.patch
 )
 
-# Run cmake configure step
-vcpkg_configure_cmake(
-    SOURCE_PATH ${SOURCE_PATH}
-    OPTIONS 
-        -DPYTHON_EXECUTABLE=${PYTHON2}
+file(REMOVE "${SOURCE_PATH}/tools/cmake/Modules/FindPython.cmake")
+file(REMOVE "${SOURCE_PATH}/tools/cmake/Modules/FindOpenSSL.cmake")
+file(REMOVE "${SOURCE_PATH}/tools/cmake/Modules/FindJsonCpp.cmake")
+
+vcpkg_find_acquire_program(PYTHON3)
+
+if(VCPKG_TARGET_IS_OSX OR VCPKG_TARGET_IS_IOS)
+    set(rpath "@loader_path")
+else()
+    set(rpath "\$ORIGIN")
+endif()
+vcpkg_cmake_configure(
+    SOURCE_PATH "${SOURCE_PATH}"
+    DISABLE_PARALLEL_CONFIGURE # It may cause call CHECK_LIBRARY_EXISTS before call project to set the language
+    OPTIONS
+        -DBUILD_BINDINGS=cpp
+        -DCMAKE_DISABLE_FIND_PACKAGE_CyrusSASL=ON
+        -DCMAKE_DISABLE_FIND_PACKAGE_Doxygen=ON
+        -DCMAKE_DISABLE_FIND_PACKAGE_SWIG=ON
+        -DENABLE_JSONCPP=ON
+        -DENABLE_LINKTIME_OPTIMIZATION=OFF
+        -DENABLE_OPENTELEMETRYCPP=OFF
+        -DLIB_SUFFIX=
+        -DENABLE_WARNING_ERROR=OFF
+        -DENABLE_BENCHMARKS=OFF
+        -DENABLE_FUZZ_TESTING=OFF
+        -DBUILD_EXAMPLES=OFF
+        -DBUILD_TESTING=OFF
+        -DCMAKE_INSTALL_RPATH=${rpath}
+        -DPython_EXECUTABLE=${PYTHON3}
 )
 
-# Run cmake install step
-vcpkg_install_cmake()
-
-# Copy across any pdbs generated
+vcpkg_cmake_install()
 vcpkg_copy_pdbs()
 
-# Rename share subdirectory
-file(RENAME ${CURRENT_PACKAGES_DIR}/share/proton-${QPID_PROTON_VERSION}
-            ${CURRENT_PACKAGES_DIR}/share/${PORT})
+# qpid-proton installs tests into share/proton; this is not desireable
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/share/proton")
 
-# Vcpkg expects file with name "copyright"
-file(RENAME ${CURRENT_PACKAGES_DIR}/share/${PORT}/LICENSE.txt
-            ${CURRENT_PACKAGES_DIR}/share/${PORT}/copyright)
+vcpkg_cmake_config_fixup(
+    PACKAGE_NAME proton
+    CONFIG_PATH lib/cmake/Proton
+    DO_NOT_DELETE_PARENT_CONFIG_PATH
+)
+vcpkg_cmake_config_fixup(
+    PACKAGE_NAME protoncpp
+    CONFIG_PATH lib/cmake/ProtonCpp
+)
+vcpkg_fixup_pkgconfig()
 
-# Remove extraneous unrequired-for-vcpkg files
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug/include)
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug/share)
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug/lib/cmake)
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/lib/cmake)
+file(REMOVE_RECURSE
+    "${CURRENT_PACKAGES_DIR}/debug/include"
+    "${CURRENT_PACKAGES_DIR}/debug/share"
+)
+
+vcpkg_replace_string("${CURRENT_PACKAGES_DIR}/include/proton/version.h" "#define PN_INSTALL_PREFIX \"${CURRENT_PACKAGES_DIR}\"" "" IGNORE_UNCHANGED)
+
+vcpkg_install_copyright(FILE_LIST "${SOURCE_PATH}/LICENSE.txt")

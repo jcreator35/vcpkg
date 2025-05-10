@@ -1,32 +1,62 @@
-include(vcpkg_common_functions)
 vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
     REPO lz4/lz4
-    REF v1.9.1
-    SHA512 536cdeb6dd73b4769cf9501ad312b004ab01699758534b47ca2eddbc815fd374a3caba40cde36f73a7a70e134065836b733e2b0c023c31740b877ef9317ccf3e
-    HEAD_REF dev)
+    REF v${VERSION}
+    SHA512 8c4ceb217e6dc8e7e0beba99adc736aca8963867bcf9f970d621978ba11ce92855912f8b66138037a1d2ae171e8e17beb7be99281fea840106aa60373c455b28
+    HEAD_REF dev
+    PATCHES
+        target-lz4-lz4.diff
+)
 
-file(COPY ${CMAKE_CURRENT_LIST_DIR}/CMakeLists.txt DESTINATION ${SOURCE_PATH})
+vcpkg_check_features(OUT_FEATURE_OPTIONS FEATURE_OPTIONS
+    FEATURES
+        tools LZ4_BUILD_CLI
+)
 
-vcpkg_configure_cmake(
-    SOURCE_PATH ${SOURCE_PATH}
-    PREFER_NINJA
+vcpkg_cmake_configure(
+    SOURCE_PATH "${SOURCE_PATH}/build/cmake"
+    OPTIONS
+        ${FEATURE_OPTIONS}
     OPTIONS_DEBUG
-        -DLZ4_SKIP_INCLUDES=ON
-        -DCMAKE_DEBUG_POSTFIX=d)
+        -DCMAKE_DEBUG_POSTFIX=d
+)
 
-vcpkg_install_cmake()
+vcpkg_cmake_install()
 vcpkg_copy_pdbs()
 
+if("tools" IN_LIST FEATURES)
+    vcpkg_copy_tools(
+        TOOL_NAMES lz4
+        AUTO_CLEAN
+    )
+endif()
+
+if(VCPKG_LIBRARY_LINKAGE STREQUAL "dynamic")
+    set(DLL_IMPORT "1 && defined(_MSC_VER)")
+else()
+    set(DLL_IMPORT "0")
+endif()
 foreach(FILE lz4.h lz4frame.h)
-    file(READ ${CURRENT_PACKAGES_DIR}/include/${FILE} LZ4_HEADER)
-    if(VCPKG_LIBRARY_LINKAGE STREQUAL "dynamic")
-        string(REPLACE "defined(LZ4_DLL_IMPORT) && (LZ4_DLL_IMPORT==1)" "1" LZ4_HEADER "${LZ4_HEADER}")
-    else()
-        string(REPLACE "defined(LZ4_DLL_IMPORT) && (LZ4_DLL_IMPORT==1)" "0" LZ4_HEADER "${LZ4_HEADER}")
-    endif()
-    file(WRITE ${CURRENT_PACKAGES_DIR}/include/${FILE} "${LZ4_HEADER}")
+    vcpkg_replace_string("${CURRENT_PACKAGES_DIR}/include/${FILE}"
+        "defined(LZ4_DLL_IMPORT) && (LZ4_DLL_IMPORT==1)"
+        "${DLL_IMPORT}"
+    )
 endforeach()
 
-file(COPY ${SOURCE_PATH}/lib/LICENSE DESTINATION ${CURRENT_PACKAGES_DIR}/share/lz4)
-file(RENAME ${CURRENT_PACKAGES_DIR}/share/lz4/LICENSE ${CURRENT_PACKAGES_DIR}/share/lz4/copyright)
+vcpkg_cmake_config_fixup(CONFIG_PATH "lib/cmake/lz4")
+
+vcpkg_fixup_pkgconfig()
+if(NOT DEFINED VCPKG_BUILD_TYPE OR VCPKG_BUILD_TYPE STREQUAL "debug")
+    vcpkg_replace_string("${CURRENT_PACKAGES_DIR}/debug/lib/pkgconfig/liblz4.pc" " -llz4" " -llz4d")
+endif()
+
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/include")
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/share")
+
+file(INSTALL "${CMAKE_CURRENT_LIST_DIR}/usage" DESTINATION "${CURRENT_PACKAGES_DIR}/share/${PORT}")
+
+set(LICENSE_FILES "${SOURCE_PATH}/lib/LICENSE")
+if("tools" IN_LIST FEATURES)
+    list(APPEND LICENSE_FILES "${SOURCE_PATH}/programs/COPYING")
+endif()
+vcpkg_install_copyright(FILE_LIST ${LICENSE_FILES})

@@ -1,44 +1,26 @@
-include(vcpkg_common_functions)
-set(SOURCE_PATH ${CURRENT_BUILDTREES_DIR}/src/kealib-1.4.11)
-vcpkg_download_distfile(ARCHIVE
-    URLS "https://bitbucket.org/chchrsc/kealib/downloads/kealib-1.4.11.tar.gz"
-    FILENAME "kealib-1.4.11.tar.gz"
-    SHA512 e080dfd51111f85ddf8ab1bd71aaf7ec6cbe814db29ed62806362ef83718f777935347d9063cf29085f21bf09d4277fd88f5269af6555304130f50d093d28f63
-)
-vcpkg_extract_source_archive(${ARCHIVE})
-
-vcpkg_apply_patches(
-    SOURCE_PATH ${SOURCE_PATH}
+vcpkg_from_github(
+    OUT_SOURCE_PATH SOURCE_PATH
+    REPO ubarsc/kealib
+    REF "kealib-${VERSION}"
+    SHA512 f7b3e602cefab661621bd1b8f18d7c5dd34f4f514a187274160afd37ec45720bf0c7d0b8053ed422ea7ad301b25c418af60dbf54b86c646afdf660d1b5e57bdd
+    HEAD_REF master
     PATCHES
-        hdf5_include.patch
+        no-kea-config-script.diff
 )
 
-if ("parallel" IN_LIST FEATURES)
-    set(ENABLE_PARALLEL ON)
-else()
-    set(ENABLE_PARALLEL OFF)
-endif()
-
-if(${VCPKG_LIBRARY_LINKAGE} MATCHES "static")
-    set(HDF5_USE_STATIC_LIBRARIES ON)
-endif()
-
-vcpkg_configure_cmake(
-    SOURCE_PATH ${SOURCE_PATH}
-    PREFER_NINJA
+vcpkg_cmake_configure(
+    SOURCE_PATH "${SOURCE_PATH}"
     OPTIONS
-      -DHDF5_PREFER_PARALLEL=${ENABLE_PARALLEL}
-      -DLIBKEA_WITH_GDAL=OFF
-      -DDISABLE_TESTS=ON
-      -DHDF5_USE_STATIC_LIBRARIES=${HDF5_USE_STATIC_LIBRARIES}
+        -DLIBKEA_WITH_GDAL=OFF
+        -DCMAKE_DISABLE_FIND_PACKAGE_GDAL=ON
 )
 
-vcpkg_install_cmake()
+vcpkg_cmake_install()
 vcpkg_copy_pdbs()
+vcpkg_cmake_config_fixup(CONFIG_PATH lib/cmake/libkea PACKAGE_NAME libkea DO_NOT_DELETE_PARENT_CONFIG_PATH)
+vcpkg_cmake_config_fixup(CONFIG_PATH lib/cmake/Kealib)
 
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug/include)
-file(INSTALL ${SOURCE_PATH}/python/LICENSE.txt DESTINATION ${CURRENT_PACKAGES_DIR}/share/kealib RENAME copyright)
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/include")
 
-if(VCPKG_LIBRARY_LINKAGE STREQUAL "static")
-    file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug/bin ${CURRENT_PACKAGES_DIR}/bin)
-endif()
+file(INSTALL "${CURRENT_PORT_DIR}/usage" DESTINATION "${CURRENT_PACKAGES_DIR}/share/${PORT}")
+vcpkg_install_copyright(FILE_LIST "${SOURCE_PATH}/LICENSE.txt")

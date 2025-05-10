@@ -1,31 +1,33 @@
-include(vcpkg_common_functions)
+vcpkg_from_github(
+    OUT_SOURCE_PATH SOURCE_PATH
+    REPO libexif/libexif
+    REF "v${VERSION}"
+    SHA512 6e50134eab2fcf93036ecf8a9a9f89273ab8ddc4a171523f1f88f6d90bda799ef8f6a597c1c308fe8153dcc685a2d2b473e758e2286ce4d3143dd829e07a8c80
+    HEAD_REF master
+    PATCHES
+        fix-ssize.patch
+)
 
-if(VCPKG_CMAKE_SYSTEM_NAME STREQUAL "WindowsStore")
-    message(FATAL_ERROR "libexif currently only supports being built for desktop")
+vcpkg_list(SET options)
+if("nls" IN_LIST FEATURES)
+    vcpkg_list(APPEND options "--enable-nls")
+else()
+    vcpkg_list(APPEND options "--disable-nls")
 endif()
 
-set(LIBEXIF_VERSION 0.6.21)
-set(SOURCE_PATH ${CURRENT_BUILDTREES_DIR}/src/libexif-${LIBEXIF_VERSION})
-
-vcpkg_download_distfile(ARCHIVE
-    URLS "https://freefr.dl.sourceforge.net/project/libexif/libexif/${LIBEXIF_VERSION}/libexif-${LIBEXIF_VERSION}.tar.bz2"
-    FILENAME "libexif-${LIBEXIF_VERSION}.tar.bz2"
-    SHA512 4e0fe2abe85d1c95b41cb3abe1f6333dc3a9eb69dba106a674a78d74a4d5b9c5a19647118fa1cc2d72b98a29853394f1519eda9e2889eb28d3be26b21c7cfc35
-)
-vcpkg_extract_source_archive(${ARCHIVE})
-
-file(COPY ${CMAKE_CURRENT_LIST_DIR}/CMakeLists.txt DESTINATION ${SOURCE_PATH})
-file(COPY ${CMAKE_CURRENT_LIST_DIR}/config.h.cmake DESTINATION ${SOURCE_PATH})
-file(COPY ${CMAKE_CURRENT_LIST_DIR}/libexif.def    DESTINATION ${SOURCE_PATH})
-
-vcpkg_configure_cmake(
-    SOURCE_PATH ${SOURCE_PATH}
-    PREFER_NINJA
+vcpkg_configure_make(
+    SOURCE_PATH "${SOURCE_PATH}"
+    AUTOCONFIG
+    OPTIONS
+        ${options}
+        --enable-internal-docs=no
+        --enable-ship-binaries=no
 )
 
-vcpkg_install_cmake()
-vcpkg_copy_pdbs()
+vcpkg_install_make()
+vcpkg_fixup_pkgconfig()
 
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug/include)
+file(INSTALL "${CMAKE_CURRENT_LIST_DIR}/unofficial-libexif-config.cmake" DESTINATION "${CURRENT_PACKAGES_DIR}/share/unofficial-${PORT}")
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/share")
 
-file(INSTALL ${SOURCE_PATH}/COPYING DESTINATION ${CURRENT_PACKAGES_DIR}/share/libexif RENAME copyright)
+vcpkg_install_copyright(FILE_LIST "${SOURCE_PATH}/COPYING")

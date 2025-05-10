@@ -1,32 +1,48 @@
-include(vcpkg_common_functions)
+set(VCPKG_BUILD_TYPE release)  # header-only lib
 
 vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
     REPO rbock/sqlpp11
-    REF 0.57
-    SHA512 6bf48189f35cf2ff20b09e27ab83b6fb36415bed7e5c818c1ea2c9b30b5fe0a60c0f7e9930e92a0637c7b567ccfead4a9208a3aff99be89fed361778cf8c45f1
-    HEAD_REF master
-    PATCHES FixForMSVC.patch
+    REF ${VERSION}
+    SHA512 7b48f66e2e229ed046a5b5033acc1be36b0c2790773a81ce9c65fce4a85379d61e87dd0ff214eb4126ce87fe6cf2f314b7e6c54256b600d15d8352d74a8fac0d
+    HEAD_REF main
+    PATCHES
+        ddl2cpp_path.patch
+        dependencies.diff
+        fix-miss-header.patch
 )
 
-# Use sqlpp11's own build process, skipping tests
-vcpkg_configure_cmake(
-    SOURCE_PATH ${SOURCE_PATH}
+vcpkg_check_features(
+    OUT_FEATURE_OPTIONS FEATURE_OPTIONS
+    FEATURES
+        sqlite3    BUILD_SQLITE3_CONNECTOR
+        mariadb    BUILD_MARIADB_CONNECTOR
+        mysql      BUILD_MYSQL_CONNECTOR
+        postgresql BUILD_POSTGRESQL_CONNECTOR
+)
+
+vcpkg_cmake_configure(
+    SOURCE_PATH "${SOURCE_PATH}"
     OPTIONS
-    -DENABLE_TESTS:BOOL=OFF
+        -DBUILD_TESTING:BOOL=OFF
+        -DSQLPP11_INSTALL_CMAKEDIR=share/${PORT}
+        -DUSE_SYSTEM_DATE:BOOL=ON
+        ${FEATURE_OPTIONS}
 )
 
-vcpkg_install_cmake()
+vcpkg_cmake_install()
+vcpkg_cmake_config_fixup()
 
-# Move CMake config files to the right place
-vcpkg_fixup_cmake_targets(CONFIG_PATH lib/cmake)
+set(usage "sqlpp11 provides CMake targets:\n")
+if(FEATURES STREQUAL "core")
+    set(usage "This build of sqlpp11 doesn't include any connector.\n(Available via features: sqlite3, mariadb, mysql, postgresql.)\n")
+endif()
+foreach(component IN ITEMS SQLite3 SQLCipher MySQL MariaDB PostgreSQL)
+    string(TOLOWER "${component}" lib)
+    if("${lib}" IN_LIST FEATURES)
+        string(APPEND usage "\n  find_package(Sqlpp11 CONFIG REQUIRED COMPONENTS ${component})\n  target_link_libraries(main PRIVATE sqlpp11::${lib})\n")
+    endif()
+endforeach()
+file(WRITE "${CURRENT_PACKAGES_DIR}/share/${PORT}/usage" "${usage}")
 
-# Delete redundant and unnecessary directories
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug ${CURRENT_PACKAGES_DIR}/lib)
-
-# Move python script from bin directory
-file(COPY ${CURRENT_PACKAGES_DIR}/bin/sqlpp11-ddl2cpp DESTINATION ${CURRENT_PACKAGES_DIR}/scripts)
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/bin/)
-
-# Handle copyright
-file(INSTALL ${SOURCE_PATH}/LICENSE DESTINATION ${CURRENT_PACKAGES_DIR}/share/sqlpp11 RENAME copyright)
+vcpkg_install_copyright(FILE_LIST "${SOURCE_PATH}/LICENSE")

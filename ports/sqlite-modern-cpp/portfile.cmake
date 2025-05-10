@@ -1,11 +1,9 @@
 # header only
-include(vcpkg_common_functions)
-
 vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
-    REPO aminroosta/sqlite_modern_cpp
-    REF e2248fae15c9e1a240f54d29a148e501f4ea2347
-    SHA512 89f0ff234e5600ff5f51cb75934fa71d86b51f4e06f1cf4b7cffc0498985120877f8d58bbdbe02fc3cae212acc071a74cd5a3e44fdaf95c3aeaf79338f43fe9d
+    REPO SqliteModernCpp/sqlite_modern_cpp
+    REF 6e3009973025e0016d5573529067714201338c80
+    SHA512 a007c739e00b9bd51d19f3bc484709f9fc4637f0262b636b51ee95cbc7f3f7fe6551dcbf0990a0430ac12f276bb72d1e0a3b71f06ac6e6d19fb46d51066a4295
     HEAD_REF master
 )
 

@@ -1,15 +1,22 @@
-# header-only
-include(vcpkg_common_functions)
+vcpkg_check_linkage(ONLY_STATIC_LIBRARY)
 
 vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
     REPO syoyo/tinyexr
-    REF d16ea6347ae78bcee984fb57cab1f023aeda4fb0
-    SHA512 63399688d7894f9ac4b893b2142202b36108b5029b11c40c3f9ad0f0135625fb0c8e0d54cec88d92c016774648dc829a946d9575c5f19afea56542c00759546e
+    REF "v${VERSION}"
+    SHA512 19187cbd703c7a2f9e5322a123453cbd56d2b842d1e8f026831d405e9356b8f2a7fde5a2c6b601ee3a28f0a00293d635245b8b70bf03375cce56b5b816d5d54a
     HEAD_REF master
+    PATCHES
+        fixtargets.patch
 )
 
-file(COPY ${SOURCE_PATH}/tinyexr.h DESTINATION ${CURRENT_PACKAGES_DIR}/include)
+vcpkg_cmake_configure(
+    SOURCE_PATH ${SOURCE_PATH}
+    OPTIONS
+        -DTINYEXR_BUILD_SAMPLE=OFF
+)
+vcpkg_cmake_install()
+vcpkg_cmake_config_fixup()
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/include")
 
-# Handle copyright
-file(COPY ${CMAKE_CURRENT_LIST_DIR}/copyright DESTINATION ${CURRENT_PACKAGES_DIR}/share/tinyexr)
+file(INSTALL ${SOURCE_PATH}/README.md DESTINATION ${CURRENT_PACKAGES_DIR}/share/${PORT} RENAME copyright)

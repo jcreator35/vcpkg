@@ -1,19 +1,13 @@
-include(vcpkg_common_functions)
-set(PORT_COMMIT 882aec454b2bc3d5323b8691736ff09c288f4ed6)
-
 vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
     REPO CoolProp/REFPROP-headers
-    REF ${PORT_COMMIT}
-    SHA512 23ee3df4ffe21b2d790efa27a1b8ea5fa4fce0a274d78e493a2d71043670420e19216f925d23d04f6139ca084a21b97028bd2547f3dbd00ffbb33d0c0bbfece5
+    REF b4faab1b73911c32c4b69c526c7e92f74edb67de
+    SHA512 601fcc70e7e12419e03e71b140c2fcec80eafb19f24f9871355679662802815f98cce2d167638658ba04ba7da0e811b2cf5393ced4dbe40cb2930dee75acced5
     HEAD_REF master
+    PATCHES
+        unicode-build.diff # https://github.com/CoolProp/REFPROP-headers/issues/21
 )
 
-file(INSTALL ${SOURCE_PATH}/REFPROP_lib.h DESTINATION ${CURRENT_PACKAGES_DIR}/include)
+file(INSTALL "${SOURCE_PATH}/REFPROP_lib.h" DESTINATION "${CURRENT_PACKAGES_DIR}/include")
 
-# Handle copyright
-file(
-  INSTALL ${SOURCE_PATH}/LICENSE
-  DESTINATION ${CURRENT_PACKAGES_DIR}/share/refprop-headers
-  RENAME copyright
-)
+vcpkg_install_copyright(FILE_LIST "${SOURCE_PATH}/LICENSE")

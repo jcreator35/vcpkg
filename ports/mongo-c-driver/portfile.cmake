@@ -1,126 +1,106 @@
-include(vcpkg_common_functions)
+# This port needs to be updated at the same time as libbson
 vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
     REPO mongodb/mongo-c-driver
-    REF 1.13.0
-    SHA512 d2f5b04b3d2dbdeba4547ec1fe8a0da7bad5214de92fff480ef0ff7d97ea45d5e6347c11c249867d4905b1dd81b76c7cfbb9094a58df586dae881955ee246907
+    REF "${VERSION}"
+    SHA512 6cd5bdd487d84f2f3c9224266e83055bb3b9359205526b9da89813f9c5690c8b6cccb91e4a63473455eea929f831b6f561d894aa429c01ee3dbd6694667be89a
     HEAD_REF master
-    PATCHES fix-uwp.patch
+    PATCHES
+        disable-dynamic-when-static.patch
+        fix-dependencies.patch
+        fix-include-directory.patch
+        fix-mingw.patch
+        remove_abs_patch.cmake
 )
+file(WRITE "${SOURCE_PATH}/VERSION_CURRENT" "${VERSION}")
+file(TOUCH "${SOURCE_PATH}/src/utf8proc-editable")
+file(GLOB vendored_libs "${SOURCE_PATH}/src/utf8proc-*" "${SOURCE_PATH}/src/zlib-*/*.h")
+file(REMOVE_RECURSE ${vendored_libs})
 
+# Cannot use string(COMPARE EQUAL ...)
+set(ENABLE_STATIC OFF)
 if(VCPKG_LIBRARY_LINKAGE STREQUAL "static")
     set(ENABLE_STATIC ON)
-else()
-    set(ENABLE_STATIC OFF)
 endif()
 
-if(NOT VCPKG_CMAKE_SYSTEM_NAME)
-    set(ENABLE_SSL "WINDOWS")
-else()
-    set(ENABLE_SSL "OPENSSL")
-endif()
-
-vcpkg_configure_cmake(
-    SOURCE_PATH ${SOURCE_PATH}
-    PREFER_NINJA
-    OPTIONS
-        -DBSON_ROOT_DIR=${CURRENT_INSTALLED_DIR}
-        -DENABLE_MONGOC=ON
-        -DENABLE_BSON=ON
-        -DENABLE_TESTS=OFF
-        -DENABLE_EXAMPLES=OFF
-        -DENABLE_SSL=${ENABLE_SSL}
-        -DENABLE_STATIC=${ENABLE_STATIC}
+vcpkg_check_features(OUT_FEATURE_OPTIONS OPTIONS
+    FEATURES
+        snappy      ENABLE_SNAPPY
+        zstd        ENABLE_ZSTD
 )
 
-vcpkg_install_cmake()
-
-if (VCPKG_LIBRARY_LINKAGE STREQUAL "static")
-    vcpkg_fixup_cmake_targets(CONFIG_PATH "lib/cmake/libmongoc-static-1.0")
+if("openssl" IN_LIST FEATURES)
+    list(APPEND OPTIONS -DENABLE_SSL=OPENSSL)
+elseif(VCPKG_TARGET_IS_WINDOWS)
+    list(APPEND OPTIONS -DENABLE_SSL=WINDOWS)
+elseif(VCPKG_TARGET_IS_OSX OR VCPKG_TARGET_IS_IOS)
+    list(APPEND OPTIONS -DENABLE_SSL=DARWIN)
 else()
-    vcpkg_fixup_cmake_targets(CONFIG_PATH "lib/cmake/libmongoc-1.0")
-endif()
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug/share)
-
-# This rename is needed because the official examples expect to use #include <mongoc.h>
-# See Microsoft/vcpkg#904
-file(RENAME
-    ${CURRENT_PACKAGES_DIR}/include/libmongoc-1.0
-    ${CURRENT_PACKAGES_DIR}/temp)
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/include)
-file(RENAME ${CURRENT_PACKAGES_DIR}/temp ${CURRENT_PACKAGES_DIR}/include)
-
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug/include)
-
-if (VCPKG_LIBRARY_LINKAGE STREQUAL static)
-    if(VCPKG_CMAKE_SYSTEM_NAME AND NOT VCPKG_CMAKE_SYSTEM_NAME STREQUAL "WindowsStore")
-	    file(RENAME
-            ${CURRENT_PACKAGES_DIR}/lib/libmongoc-static-1.0.a
-            ${CURRENT_PACKAGES_DIR}/lib/libmongoc-1.0.a)
-        file(RENAME
-            ${CURRENT_PACKAGES_DIR}/debug/lib/libmongoc-static-1.0.a
-            ${CURRENT_PACKAGES_DIR}/debug/lib/libmongoc-1.0.a)
-    else()
-        file(RENAME
-            ${CURRENT_PACKAGES_DIR}/lib/mongoc-static-1.0.lib
-            ${CURRENT_PACKAGES_DIR}/lib/mongoc-1.0.lib)
-        file(RENAME
-            ${CURRENT_PACKAGES_DIR}/debug/lib/mongoc-static-1.0.lib
-            ${CURRENT_PACKAGES_DIR}/debug/lib/mongoc-1.0.lib)
-    endif()
-
-    # drop the __declspec(dllimport) when building static
-    vcpkg_apply_patches(
-        SOURCE_PATH ${CURRENT_PACKAGES_DIR}/include
-        PATCHES
-            static.patch
-    )
-
-    file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug/bin ${CURRENT_PACKAGES_DIR}/bin)
+    list(APPEND OPTIONS -DENABLE_SSL=OFF)
 endif()
 
-configure_file(${SOURCE_PATH}/COPYING ${CURRENT_PACKAGES_DIR}/share/mongo-c-driver/copyright COPYONLY)
-file(COPY ${SOURCE_PATH}/THIRD_PARTY_NOTICES DESTINATION ${CURRENT_PACKAGES_DIR}/share/mongo-c-driver)
-
-if (VCPKG_LIBRARY_LINKAGE STREQUAL static)
-    set(PORT_POSTFIX "static-1.0")
-else()
-    set(PORT_POSTFIX "1.0")
+if(VCPKG_TARGET_IS_ANDROID)
+    vcpkg_list(APPEND OPTIONS -DENABLE_SRV=OFF)
 endif()
 
-# Create cmake files for _both_ find_package(mongo-c-driver) and find_package(libmongoc-static-1.0)/find_package(libmongoc-1.0)
-file(READ ${CURRENT_PACKAGES_DIR}/share/mongo-c-driver/libmongoc-${PORT_POSTFIX}-config.cmake LIBMONGOC_CONFIG_CMAKE)
+vcpkg_find_acquire_program(PKGCONFIG)
 
-# Patch: Set _IMPORT_PREFIX and replace PACKAGE_PREFIX_DIR
-string(REPLACE 
-[[
-get_filename_component(PACKAGE_PREFIX_DIR "${CMAKE_CURRENT_LIST_DIR}/../../" ABSOLUTE)
-]]
-[[
-# VCPKG PATCH SET IMPORT_PREFIX
-get_filename_component(_IMPORT_PREFIX "${CMAKE_CURRENT_LIST_FILE}" PATH)
-get_filename_component(_IMPORT_PREFIX "${_IMPORT_PREFIX}" PATH)
-get_filename_component(_IMPORT_PREFIX "${_IMPORT_PREFIX}" PATH)
-if(_IMPORT_PREFIX STREQUAL "/")
-  set(_IMPORT_PREFIX "")
-endif()
-]]
-    LIBMONGOC_CONFIG_CMAKE "${LIBMONGOC_CONFIG_CMAKE}")
-string(REPLACE [[PACKAGE_PREFIX_DIR]] [[_IMPORT_PREFIX]] LIBMONGOC_CONFIG_CMAKE "${LIBMONGOC_CONFIG_CMAKE}")
+vcpkg_cmake_configure(
+    SOURCE_PATH "${SOURCE_PATH}"
+    DISABLE_PARALLEL_CONFIGURE
+    OPTIONS
+        ${OPTIONS}
+        "-DBUILD_VERSION=${VERSION}"
+        -DUSE_BUNDLED_UTF8PROC=OFF
+        -DUSE_SYSTEM_LIBBSON=ON
+        -DENABLE_CLIENT_SIDE_ENCRYPTION=OFF
+        -DENABLE_EXAMPLES=OFF
+        -DENABLE_SASL=OFF
+        -DENABLE_SHM_COUNTERS=OFF
+        -DENABLE_STATIC=${ENABLE_STATIC}
+        -DENABLE_TESTS=OFF
+        -DBUILD_TESTING=OFF
+        -DENABLE_UNINSTALL=OFF
+        -DENABLE_ZLIB=SYSTEM
+        "-DPKG_CONFIG_EXECUTABLE=${PKGCONFIG}"
+    MAYBE_UNUSED_VARIABLES
+        PKG_CONFIG_EXECUTABLE
+)
 
-string(REPLACE "/include/libmongoc-1.0" "/include" LIBMONGOC_CONFIG_CMAKE "${LIBMONGOC_CONFIG_CMAKE}")
-string(REPLACE "mongoc-static-1.0" "mongoc-1.0" LIBMONGOC_CONFIG_CMAKE "${LIBMONGOC_CONFIG_CMAKE}")
-file(WRITE ${CURRENT_PACKAGES_DIR}/share/mongo-c-driver/libmongoc-${PORT_POSTFIX}-config.cmake "${LIBMONGOC_CONFIG_CMAKE}")
-file(COPY ${CURRENT_PACKAGES_DIR}/share/mongo-c-driver/libmongoc-${PORT_POSTFIX}-config.cmake DESTINATION ${CURRENT_PACKAGES_DIR}/share/libmongoc-${PORT_POSTFIX})
-file(COPY ${CURRENT_PACKAGES_DIR}/share/mongo-c-driver/libmongoc-${PORT_POSTFIX}-config-version.cmake DESTINATION ${CURRENT_PACKAGES_DIR}/share/libmongoc-${PORT_POSTFIX})
-file(RENAME ${CURRENT_PACKAGES_DIR}/share/mongo-c-driver/libmongoc-${PORT_POSTFIX}-config.cmake ${CURRENT_PACKAGES_DIR}/share/mongo-c-driver/mongo-c-driver-config.cmake)
-file(RENAME ${CURRENT_PACKAGES_DIR}/share/mongo-c-driver/libmongoc-${PORT_POSTFIX}-config-version.cmake ${CURRENT_PACKAGES_DIR}/share/mongo-c-driver/mongo-c-driver-config-version.cmake)
-
+vcpkg_cmake_install()
 vcpkg_copy_pdbs()
 
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug/lib/pkgconfig/libbson-1.0.pc ${CURRENT_PACKAGES_DIR}/lib/pkgconfig/libbson-1.0.pc)
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug/lib/pkgconfig/libbson-static-1.0.pc ${CURRENT_PACKAGES_DIR}/lib/pkgconfig/libbson-static-1.0.pc)
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug/lib/bson-1.0.lib ${CURRENT_PACKAGES_DIR}/lib/bson-1.0.lib)
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug/lib/bson-static-1.0.lib ${CURRENT_PACKAGES_DIR}/lib/bson-static-1.0.lib)
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug/bin/libbson-1.0.dll ${CURRENT_PACKAGES_DIR}/bin/libbson-1.0.dll)
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug/bin/libbson-1.0.pdb ${CURRENT_PACKAGES_DIR}/bin/libbson-1.0.pdb)
+if("snappy" IN_LIST FEATURES AND VCPKG_LIBRARY_LINKAGE STREQUAL "static")
+    vcpkg_replace_string("${CURRENT_PACKAGES_DIR}/lib/pkgconfig/libmongoc-static-1.0.pc" " -lSnappy::snappy" "")
+    vcpkg_replace_string("${CURRENT_PACKAGES_DIR}/lib/pkgconfig/libmongoc-static-1.0.pc" "Requires: " "Requires: snappy ")
+    if(NOT VCPKG_BUILD_TYPE)
+        vcpkg_replace_string("${CURRENT_PACKAGES_DIR}/debug/lib/pkgconfig/libmongoc-static-1.0.pc" " -lSnappy::snappy" "")
+        vcpkg_replace_string("${CURRENT_PACKAGES_DIR}/debug/lib/pkgconfig/libmongoc-static-1.0.pc" "Requires: " "Requires: snappy ")
+    endif()
+endif()
+vcpkg_fixup_pkgconfig()
+
+# deprecated
+vcpkg_cmake_config_fixup(PACKAGE_NAME libmongoc-1.0 CONFIG_PATH "lib/cmake/libmongoc-1.0" DO_NOT_DELETE_PARENT_CONFIG_PATH)
+if(VCPKG_LIBRARY_LINKAGE STREQUAL "static")
+    vcpkg_cmake_config_fixup(PACKAGE_NAME libmongoc-static-1.0 CONFIG_PATH "lib/cmake/libmongoc-static-1.0" DO_NOT_DELETE_PARENT_CONFIG_PATH)
+    vcpkg_replace_string("${CURRENT_PACKAGES_DIR}/include/mongoc/mongoc-macros.h"
+        "#define MONGOC_MACROS_H" "#define MONGOC_MACROS_H\n#ifndef MONGOC_STATIC\n#define MONGOC_STATIC\n#endif")
+    vcpkg_replace_string("${CURRENT_PACKAGES_DIR}/share/libmongoc-1.0/libmongoc-1.0-config.cmake" "mongoc_shared" "mongoc_static")
+endif()
+# recommended
+vcpkg_cmake_config_fixup(PACKAGE_NAME mongoc-1.0 CONFIG_PATH "lib/cmake/mongoc-1.0")
+
+file(REMOVE_RECURSE
+    "${CURRENT_PACKAGES_DIR}/debug/include"
+    "${CURRENT_PACKAGES_DIR}/debug/share"
+)
+
+file(INSTALL "${CMAKE_CURRENT_LIST_DIR}/usage" DESTINATION  "${CURRENT_PACKAGES_DIR}/share/${PORT}")
+
+vcpkg_install_copyright(
+    FILE_LIST
+        "${SOURCE_PATH}/COPYING"
+        "${SOURCE_PATH}/THIRD_PARTY_NOTICES"
+        "${SOURCE_PATH}/src/libmongoc/THIRD_PARTY_NOTICES"
+)

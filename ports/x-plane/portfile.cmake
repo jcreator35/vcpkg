@@ -1,43 +1,37 @@
-include(vcpkg_common_functions)
+vcpkg_check_linkage(ONLY_STATIC_LIBRARY)
 
-if (VCPKG_TARGET_ARCHITECTURE STREQUAL x86)
-    message(FATAL_ERROR "the x-plane SDK cannot be built for the x86 architecture")
-endif()
-
+string(REPLACE "." "" XPSDK_VERSION "${VERSION}")
 vcpkg_download_distfile(
-    OUT_SOURCE_PATH
-    URLS http://developer.x-plane.com/wp-content/plugins/code-sample-generation/sample_templates/XPSDK301.zip
-    FILENAME XPSDK301.zip
-    SHA512 3044d606039be8230f35a5992d322d4c009b4056f8fb17e929a9f5c2204c084e2c83ddad10801b21727645ec957c8942b83938f81256ec3778dbe75df525e62a
+    XPLANE_SDK_ZIP
+    URLS "https://developer.x-plane.com/wp-content/plugins/code-sample-generation/sdk_zip_files/XPSDK${XPSDK_VERSION}.zip"
+    FILENAME "XPSDK${XPSDK_VERSION}.zip"
+    SHA512 3ad66ce34b9e1e6dfba0c4547f3976b4a9862bdea0c498f43f3eedfb164d4e1b357e631b72b572b7646bffaa4ffe38698000a63dea1ae8f4c50c4037b8b6471a
 )
-
 vcpkg_extract_source_archive(
-    ${OUT_SOURCE_PATH} ${CURRENT_PACKAGES_DIR}/temp/
+    SOURCE_PATH
+    ARCHIVE "${XPLANE_SDK_ZIP}"
 )
 
-file(MAKE_DIRECTORY
-    ${CURRENT_PACKAGES_DIR}/lib
-    ${CURRENT_PACKAGES_DIR}/debug/lib
+file(COPY "${CMAKE_CURRENT_LIST_DIR}/CMakeLists.txt" DESTINATION "${SOURCE_PATH}")
+file(COPY "${CMAKE_CURRENT_LIST_DIR}/unofficial-x-plane-config.cmake.in" DESTINATION "${SOURCE_PATH}")
+
+vcpkg_cmake_configure(
+    SOURCE_PATH "${SOURCE_PATH}"
 )
 
-file(COPY ${CURRENT_PACKAGES_DIR}/temp/SDK/CHeaders/Widgets/ DESTINATION ${CURRENT_PACKAGES_DIR}/include)
-file(COPY ${CURRENT_PACKAGES_DIR}/temp/SDK/CHeaders/Wrappers/ DESTINATION ${CURRENT_PACKAGES_DIR}/include)
-file(COPY ${CURRENT_PACKAGES_DIR}/temp/SDK/CHeaders/XPLM/ DESTINATION ${CURRENT_PACKAGES_DIR}/include)
+vcpkg_cmake_install()
+vcpkg_cmake_config_fixup(PACKAGE_NAME unofficial-x-plane)
 
-if(NOT VCPKG_CMAKE_SYSTEM_NAME OR VCPKG_CMAKE_SYSTEM_NAME STREQUAL "WindowsStore")
-    file(COPY ${CURRENT_PACKAGES_DIR}/temp/SDK/Libraries/Win/XPLM_64.lib DESTINATION ${CURRENT_PACKAGES_DIR}/lib/)
-    file(COPY ${CURRENT_PACKAGES_DIR}/temp/SDK/Libraries/Win/XPWidgets_64.lib DESTINATION ${CURRENT_PACKAGES_DIR}/lib/)
-    file(COPY ${CURRENT_PACKAGES_DIR}/temp/SDK/Libraries/Win/XPLM_64.lib DESTINATION ${CURRENT_PACKAGES_DIR}/debug/lib/)
-    file(COPY ${CURRENT_PACKAGES_DIR}/temp/SDK/Libraries/Win/XPWidgets_64.lib DESTINATION ${CURRENT_PACKAGES_DIR}/debug/lib/)
-elseif (VCPKG_CMAKE_SYSTEM_NAME STREQUAL "Darwin")
-    file(COPY ${CURRENT_PACKAGES_DIR}/temp/SDK/Libraries/Mac/XPLM.framework/ DESTINATION ${CURRENT_PACKAGES_DIR}/lib/)
-    file(COPY ${CURRENT_PACKAGES_DIR}/temp/SDK/Libraries/Mac/XPWidgets.framework/ DESTINATION ${CURRENT_PACKAGES_DIR}/lib/)
-    file(COPY ${CURRENT_PACKAGES_DIR}/temp/SDK/Libraries/Mac/XPLM.framework/ DESTINATION ${CURRENT_PACKAGES_DIR}/debug/lib/)
-    file(COPY ${CURRENT_PACKAGES_DIR}/temp/SDK/Libraries/Mac/XPWidgets.framework/ DESTINATION ${CURRENT_PACKAGES_DIR}/debug/lib/)
+if(VCPKG_TARGET_IS_WINDOWS)
+  file(COPY "${SOURCE_PATH}/Libraries/Win/XPLM_64.lib" DESTINATION "${CURRENT_PACKAGES_DIR}/lib")
+  file(COPY "${SOURCE_PATH}/Libraries/Win/XPLM_64.lib" DESTINATION "${CURRENT_PACKAGES_DIR}/debug/lib")
+  file(COPY "${SOURCE_PATH}/Libraries/Win/XPWidgets_64.lib" DESTINATION "${CURRENT_PACKAGES_DIR}/lib")
+  file(COPY "${SOURCE_PATH}/Libraries/Win/XPWidgets_64.lib" DESTINATION "${CURRENT_PACKAGES_DIR}/debug/lib")
 endif()
 
-# Handle copyright
-file(COPY ${CURRENT_PACKAGES_DIR}/temp/SDK/license.txt DESTINATION ${CURRENT_PACKAGES_DIR}/share/x-plane/)
-file(RENAME ${CURRENT_PACKAGES_DIR}/share/x-plane/license.txt ${CURRENT_PACKAGES_DIR}/share/x-plane/copyright)
+vcpkg_install_copyright(FILE_LIST "${SOURCE_PATH}/license.txt")
 
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/temp/)
+configure_file("${CMAKE_CURRENT_LIST_DIR}/usage" "${CURRENT_PACKAGES_DIR}/share/${PORT}/usage" COPYONLY)
+
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/include")
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/share")

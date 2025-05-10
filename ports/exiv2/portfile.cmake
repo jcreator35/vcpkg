@@ -1,51 +1,58 @@
-include(vcpkg_common_functions)
-
 vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
     REPO Exiv2/exiv2
-    REF 0.27
-    SHA512 ec605db73abcf3cc2df78c1fc3aae5335a51192f660668e39a4f20fc7f372b18c3cec9b704e1c71c356315fd75e791622de1dffe576432ee0fb12bf63a98a423
+    REF "v${VERSION}"
+    SHA512 43c1d68255ee8df124b3093e1f4101d2f55fd8d6105bb6f20b148fe7d59472b895f0cba914e59f6d1581e84eee9d7033572821b80c16507e92abcb9a738daadc
     HEAD_REF master
     PATCHES
-        iconv.patch
+        dependencies.diff
 )
 
-if(WIN32 AND ("unicode" IN_LIST FEATURES))
-    set(enable_win_unicode TRUE)
-elseif()
-    set(enable_win_unicode FALSE)
+vcpkg_check_features(OUT_FEATURE_OPTIONS FEATURE_OPTIONS
+    FEATURES
+        xmp     EXIV2_ENABLE_XMP
+        png     EXIV2_ENABLE_PNG
+        nls     EXIV2_ENABLE_NLS
+        bmff    EXIV2_ENABLE_BMFF
+)
+if(VCPKG_TARGET_IS_UWP)
+    list(APPEND FEATURE_OPTIONS -DEXIV2_ENABLE_FILESYSTEM_ACCESS=OFF)
 endif()
 
-vcpkg_configure_cmake(
-    SOURCE_PATH ${SOURCE_PATH}
-    PREFER_NINJA
+string(COMPARE EQUAL "${VCPKG_CRT_LINKAGE}" "dynamic" EXIV2_CRT_DYNAMIC)
+
+vcpkg_add_to_path(PREPEND "${CURRENT_HOST_INSTALLED_DIR}/tools/gettext/bin")
+
+vcpkg_cmake_configure(
+    SOURCE_PATH "${SOURCE_PATH}"
     OPTIONS
-        -DEXIV2_ENABLE_WIN_UNICODE:BOOL=${enable_win_unicode}
-        -DEXIV2_BUILD_EXIV2_COMMAND:BOOL=FALSE
-        -DEXIV2_BUILD_UNIT_TESTS:BOOL=FALSE
-        -DEXIV2_BUILD_SAMPLES:BOOL=FALSE
-#        -DEXIV2_ENABLE_NLS:BOOL=OFF
+        ${FEATURE_OPTIONS}
+        -DEXIV2_BUILD_EXIV2_COMMAND=OFF
+        -DEXIV2_BUILD_UNIT_TESTS=OFF
+        -DEXIV2_BUILD_SAMPLES=OFF
+        -DEXIV2_BUILD_DOC=OFF
+        -DEXIV2_ENABLE_EXTERNAL_XMP=OFF
+        -DEXIV2_ENABLE_LENSDATA=ON
+        -DEXIV2_ENABLE_DYNAMIC_RUNTIME=${EXIV2_CRT_DYNAMIC}
+        -DEXIV2_ENABLE_WEBREADY=OFF
+        -DEXIV2_ENABLE_CURL=OFF
+        -DEXIV2_ENABLE_VIDEO=OFF
+        -DEXIV2_TEAM_EXTRA_WARNINGS=OFF
+        -DEXIV2_TEAM_WARNINGS_AS_ERRORS=OFF
+        -DEXIV2_TEAM_PACKAGING=OFF
+        -DEXIV2_TEAM_USE_SANITIZERS=OFF
+        -DCMAKE_DISABLE_FIND_PACKAGE_Python3=ON
 )
 
-vcpkg_install_cmake()
-
-vcpkg_fixup_cmake_targets(CONFIG_PATH "share/exiv2/cmake")
-
-configure_file(
-    ${CMAKE_CURRENT_LIST_DIR}/vcpkg-cmake-wrapper.cmake
-    ${CURRENT_PACKAGES_DIR}/share/exiv2
-    @ONLY
-)
-
+vcpkg_cmake_install()
+vcpkg_cmake_config_fixup(CONFIG_PATH lib/cmake/exiv2)
+vcpkg_fixup_pkgconfig()
 vcpkg_copy_pdbs()
 
-# Clean
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug/include ${CURRENT_PACKAGES_DIR}/debug/share)
+file(REMOVE_RECURSE
+    "${CURRENT_PACKAGES_DIR}/debug/include"
+    "${CURRENT_PACKAGES_DIR}/debug/share"
+    "${CURRENT_PACKAGES_DIR}/share/man"
+)
 
-if(VCPKG_LIBRARY_LINKAGE STREQUAL "static")
-    file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/bin ${CURRENT_PACKAGES_DIR}/debug/bin)
-endif()
-
-# Handle copyright 
-file(COPY ${SOURCE_PATH}/ABOUT-NLS DESTINATION ${CURRENT_PACKAGES_DIR}/share/exiv2)
-file(RENAME ${CURRENT_PACKAGES_DIR}/share/exiv2/ABOUT-NLS ${CURRENT_PACKAGES_DIR}/share/exiv2/copyright)
+vcpkg_install_copyright(FILE_LIST "${SOURCE_PATH}/COPYING")

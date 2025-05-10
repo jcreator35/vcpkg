@@ -1,13 +1,30 @@
 #header-only library
-include(vcpkg_common_functions)
-
 vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
     REPO Microsoft/wil
-    REF 43613517258fbd94182e195b1a4887420ed74b31
-    SHA512 cf15c8571d81b837b2ce4083d7e70d738698ff5ef99a7e99daa96618463281fc8e6642f1703d3b96de7208f7720ecf4108f6ed09b33d2980c2b609dc70fd4653
+    REF "v${VERSION}"
+    SHA512 9691939bfa1229ad1890e72bea801df60ee46f307591aee816ed771d225ed62b4caaf5d2ecefcbf200a41ee68f53823ec43a97c3a2d1a632aa3fcf18b35e4996
     HEAD_REF master
 )
 
-file(INSTALL ${SOURCE_PATH}/include DESTINATION ${CURRENT_PACKAGES_DIR})
-file(INSTALL ${SOURCE_PATH}/LICENSE DESTINATION ${CURRENT_PACKAGES_DIR}/share/wil RENAME copyright)
+# WIL is header-only, so we don't need to build it in both modes
+set(VCPKG_BUILD_TYPE release)
+
+vcpkg_cmake_configure(
+    SOURCE_PATH "${SOURCE_PATH}"
+    OPTIONS
+        -DWIL_BUILD_TESTS=OFF
+        -DWIL_BUILD_PACKAGING=ON
+)
+
+vcpkg_cmake_install()
+
+vcpkg_cmake_config_fixup(CONFIG_PATH share/cmake/WIL)
+
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug")
+
+# Install natvis files
+file(INSTALL "${SOURCE_PATH}/natvis/" DESTINATION "${CURRENT_PACKAGES_DIR}/share/${PORT}/natvis")
+
+# Install copyright
+vcpkg_install_copyright(FILE_LIST "${SOURCE_PATH}/LICENSE")

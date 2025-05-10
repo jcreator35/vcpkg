@@ -1,43 +1,37 @@
-include(vcpkg_common_functions)
-
 vcpkg_check_linkage(ONLY_STATIC_LIBRARY)
 
 vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
     REPO jupp0r/prometheus-cpp
-    REF v0.6.0
-    SHA512 a7e6f902f3007007ec68add5ac63e833c6f383ed0ce103e238b7248497f495e664446df7801000e36021adcb7cfb1d461bbb45e1b4fba9ffa4edfcaf5b5957dd
+    REF "v${VERSION}"
+    SHA512 e397f25c7a62d410d19be5e926cfb38175c89755e4ff9d67f06b905036daa82b0dfbe21fcc69438fc1c1e5d04f120ef7ff983ca9411ab198a3911992efb00093
     HEAD_REF master
 )
 
-macro(feature FEATURENAME OPTIONNAME)
-    if("${FEATURENAME}" IN_LIST FEATURES)
-        list(APPEND FEATURE_OPTIONS -D${OPTIONNAME}=TRUE)
-    else()
-        list(APPEND FEATURE_OPTIONS -D${OPTIONNAME}=FALSE)
-    endif()
-endmacro()
+vcpkg_check_features(
+    OUT_FEATURE_OPTIONS FEATURE_OPTIONS
+    FEATURES
+        compression ENABLE_COMPRESSION
+        pull ENABLE_PULL
+        push ENABLE_PUSH
+        tests ENABLE_TESTING
+)
 
-feature(compression ENABLE_COMPRESSION)
-feature(pull ENABLE_PULL)
-feature(push ENABLE_PUSH)
-
-vcpkg_configure_cmake(
-    SOURCE_PATH ${SOURCE_PATH}
-    PREFER_NINJA
+vcpkg_cmake_configure(
+    SOURCE_PATH "${SOURCE_PATH}"
     OPTIONS
         -DUSE_THIRDPARTY_LIBRARIES=OFF # use vcpkg packages
-        -DENABLE_TESTING=FALSE # need gtest 1.8.1
+        -DGENERATE_PKGCONFIG=OFF
         ${FEATURE_OPTIONS}
 )
 
-vcpkg_install_cmake()
+vcpkg_cmake_install()
 
 vcpkg_copy_pdbs()
 
-vcpkg_fixup_cmake_targets(CONFIG_PATH lib/cmake/prometheus-cpp)
+vcpkg_cmake_config_fixup(CONFIG_PATH "lib/cmake/prometheus-cpp")
 
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug/include)
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/include")
 
 # Handle copyright
-configure_file(${SOURCE_PATH}/LICENSE ${CURRENT_PACKAGES_DIR}/share/prometheus-cpp/copyright COPYONLY)
+configure_file("${SOURCE_PATH}/LICENSE" "${CURRENT_PACKAGES_DIR}/share/${PORT}/copyright" COPYONLY)

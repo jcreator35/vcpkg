@@ -1,24 +1,43 @@
-include(vcpkg_common_functions)
-
 vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
     REPO google/snappy
-    REF 1.1.7
-    SHA512 32046f532606ba545a4e4825c0c66a19be449f2ca2ff760a6fa170a3603731479a7deadb683546e5f8b5033414c50f4a9a29f6d23b7a41f047e566e69eca7caf
+    REF ${VERSION}
+    SHA512 0c1e1019e1bec9281f9877996d896e59e1533456130143224acb9cbfc35c1b0dd9de0a76e4a36494844d9ec58c295eed8c50bdf6dbabe47cf679652eb24b1281
     HEAD_REF master
+    PATCHES
+        no-werror.patch
+        pkgconfig.diff
+        rtti.diff
+)
+file(COPY "${CURRENT_PORT_DIR}/snappy.pc.in" DESTINATION "${SOURCE_PATH}")
+
+vcpkg_check_features(OUT_FEATURE_OPTIONS options
+    FEATURES
+        rtti    SNAPPY_WITH_RTTI
 )
 
-vcpkg_configure_cmake(
-    SOURCE_PATH ${SOURCE_PATH}
-    PREFER_NINJA
+vcpkg_cmake_configure(
+    SOURCE_PATH "${SOURCE_PATH}"
     OPTIONS
+        ${options}
         -DSNAPPY_BUILD_TESTS=OFF
-        -DCMAKE_DEBUG_POSTFIX=d)
+        -DSNAPPY_BUILD_BENCHMARKS=OFF
 
-vcpkg_install_cmake()
-vcpkg_fixup_cmake_targets(CONFIG_PATH lib/cmake/Snappy)
+        # These variables can be overriden in a custom triplet, see usage file
+        -DSNAPPY_HAVE_SSSE3=OFF
+        -DSNAPPY_HAVE_X86_CRC32=OFF
+        -DSNAPPY_HAVE_NEON_CRC32=OFF
+        -DSNAPPY_HAVE_BMI2=OFF
+        -DSNAPPY_HAVE_NEON=OFF
+)
+
+vcpkg_cmake_install()
+vcpkg_cmake_config_fixup(CONFIG_PATH lib/cmake/Snappy)
 vcpkg_copy_pdbs()
+vcpkg_fixup_pkgconfig()
 
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug/include)
-file(COPY ${SOURCE_PATH}/COPYING DESTINATION ${CURRENT_PACKAGES_DIR}/share/snappy)
-file(RENAME ${CURRENT_PACKAGES_DIR}/share/snappy/COPYING ${CURRENT_PACKAGES_DIR}/share/snappy/copyright)
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/include")
+
+file(COPY "${CMAKE_CURRENT_LIST_DIR}/usage" DESTINATION "${CURRENT_PACKAGES_DIR}/share/${PORT}")
+
+vcpkg_install_copyright(FILE_LIST "${SOURCE_PATH}/COPYING")

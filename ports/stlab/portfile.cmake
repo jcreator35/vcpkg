@@ -1,25 +1,36 @@
-include(vcpkg_common_functions)
-
 vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
     REPO stlab/libraries
-    REF v1.4.1
-    SHA512 e9da6f2c570397842f5e73a681f49c5a77977fda430ec730eed6f19d04161172829b7f1adcafd416f0a3f35ea8717ca14e9b935b5ec8fa423e4951c3ba961c7a
-    HEAD_REF develop    
-    PATCHES dont-require-testing.patch
+    REF "v${VERSION}"
+    SHA512 ceed4fffc381bebd5456d56e8f9d84094da2a9994c8be60e9c1fe4a72ae5f2c398448169927af1439615b55c549332dfe4c38a2b3b8bdf84e3c550fd14bf125c
+    HEAD_REF main
+    PATCHES
+        cross-build.patch
 )
 
-vcpkg_configure_cmake(
-    SOURCE_PATH ${SOURCE_PATH}
+vcpkg_check_features(OUT_FEATURE_OPTIONS FEATURE_OPTIONS
+    FEATURES
+        cpp17shims   STLAB_USE_BOOST_CPP17_SHIMS
+)
+
+vcpkg_cmake_configure(
+    SOURCE_PATH "${SOURCE_PATH}"
     OPTIONS
         -DBUILD_TESTING=OFF
+        ${FEATURE_OPTIONS}
+        -DCMAKE_DISABLE_FIND_PACKAGE_Qt6=ON
 )
 
-vcpkg_install_cmake()
+vcpkg_cmake_install()
+vcpkg_cmake_config_fixup(CONFIG_PATH share/cmake/stlab)
+vcpkg_copy_pdbs()
 
-# cleanup
-file(RENAME ${CURRENT_PACKAGES_DIR}/share/cmake/stlab ${CURRENT_PACKAGES_DIR}/share/stlab)
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug ${CURRENT_PACKAGES_DIR}/share/cmake)
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug" "${CURRENT_PACKAGES_DIR}/share/cmake")
 
-# handle copyright
-file(INSTALL ${SOURCE_PATH}/LICENSE DESTINATION ${CURRENT_PACKAGES_DIR}/share/stlab RENAME copyright)
+vcpkg_replace_string("${CURRENT_PACKAGES_DIR}/share/${PORT}/stlabConfig.cmake"
+    "find_dependency(Boost 1.74.0)"
+    "if(APPLE)\nfind_dependency(Boost)\nendif()"
+)
+
+
+file(INSTALL "${SOURCE_PATH}/LICENSE" DESTINATION "${CURRENT_PACKAGES_DIR}/share/${PORT}" RENAME copyright)

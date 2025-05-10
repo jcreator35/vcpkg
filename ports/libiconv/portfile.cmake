@@ -1,46 +1,72 @@
-if(VCPKG_CMAKE_SYSTEM_NAME AND NOT VCPKG_CMAKE_SYSTEM_NAME STREQUAL "WindowsStore")
+if(NOT DEFINED X_VCPKG_BUILD_GNU_LIBICONV)
+    set(X_VCPKG_BUILD_GNU_LIBICONV 0)
+    if(VCPKG_TARGET_IS_WINDOWS OR VCPKG_TARGET_IS_IOS OR VCPKG_TARGET_IS_FREEBSD OR VCPKG_TARGET_IS_OPENBSD)
+        set(X_VCPKG_BUILD_GNU_LIBICONV 1)
+    elseif(VCPKG_TARGET_IS_ANDROID)
+        vcpkg_cmake_get_vars(cmake_vars_file)
+        include("${cmake_vars_file}")
+        if(VCPKG_DETECTED_CMAKE_SYSTEM_VERSION VERSION_LESS "28")
+            set(X_VCPKG_BUILD_GNU_LIBICONV 1)
+        endif()
+    endif()
+endif()
+
+if(NOT X_VCPKG_BUILD_GNU_LIBICONV)
+    message(STATUS "Not building GNU libiconv.")
     set(VCPKG_POLICY_EMPTY_PACKAGE enabled)
-    file(MAKE_DIRECTORY ${CURRENT_PACKAGES_DIR}/share/unofficial-iconv)
-    file(COPY ${CMAKE_CURRENT_LIST_DIR}/unofficial-iconv-config.cmake DESTINATION ${CURRENT_PACKAGES_DIR}/share/unofficial-iconv)
+    file(MAKE_DIRECTORY "${CURRENT_PACKAGES_DIR}/share/iconv")
+    file(COPY "${CMAKE_CURRENT_LIST_DIR}/vcpkg-cmake-wrapper.cmake" DESTINATION "${CURRENT_PACKAGES_DIR}/share/iconv")
     return()
 endif()
 
-include(vcpkg_common_functions)
-
-set(LIBICONV_VERSION 1.15)
-
 vcpkg_download_distfile(ARCHIVE
-    URLS "https://ftp.gnu.org/gnu/libiconv/libiconv-${LIBICONV_VERSION}.tar.gz" "https://www.mirrorservice.org/sites/ftp.gnu.org/gnu/libiconv/libiconv-${LIBICONV_VERSION}.tar.gz"
-    FILENAME "libiconv-${LIBICONV_VERSION}.tar.gz"
-    SHA512 1233fe3ca09341b53354fd4bfe342a7589181145a1232c9919583a8c9979636855839049f3406f253a9d9829908816bb71fd6d34dd544ba290d6f04251376b1a
+    URLS "https://ftp.gnu.org/gnu/libiconv/libiconv-${VERSION}.tar.gz"
+         "https://www.mirrorservice.org/sites/ftp.gnu.org/gnu/libiconv/libiconv-${VERSION}.tar.gz"
+    FILENAME "libiconv-${VERSION}.tar.gz"
+    SHA512 a55eb3b7b785a78ab8918db8af541c9e11deb5ff4f89d54483287711ed797d87848ce0eafffa7ce26d9a7adb4b5a9891cb484f94bd4f51d3ce97a6a47b4c719a
 )
-vcpkg_extract_source_archive_ex(
-    OUT_SOURCE_PATH SOURCE_PATH
-    ARCHIVE ${ARCHIVE}
-    REF ${LIBICONV_VERSION}
+vcpkg_extract_source_archive(SOURCE_PATH
+    ARCHIVE "${ARCHIVE}"
+    SOURCE_BASE "v${VERSION}"
     PATCHES
-        0001-Add-export-definitions.patch
         0002-Config-for-MSVC.patch
-        0003-Fix-uwp.patch
+        0003-Add-export.patch
+        0004-ModuleFileName.patch
 )
 
-#Since libiconv uses automake, make and configure, we use a custom CMake file
-file(COPY ${CMAKE_CURRENT_LIST_DIR}/CMakeLists.txt DESTINATION ${SOURCE_PATH})
+vcpkg_list(SET OPTIONS)
+if (NOT VCPKG_TARGET_IS_ANDROID)
+    vcpkg_list(APPEND OPTIONS --enable-relocatable)
+endif()
 
-vcpkg_configure_cmake(
-    SOURCE_PATH ${SOURCE_PATH}
-    PREFER_NINJA
-    OPTIONS_DEBUG -DDISABLE_INSTALL_HEADERS=ON
+vcpkg_configure_make(
+    SOURCE_PATH "${SOURCE_PATH}"
+    DETERMINE_BUILD_TRIPLET
+    USE_WRAPPERS
+    OPTIONS
+        --enable-extra-encodings
+        --without-libiconv-prefix
+        --without-libintl-prefix
+        ${OPTIONS}
 )
-
-vcpkg_install_cmake()
-
-vcpkg_fixup_cmake_targets(CONFIG_PATH share/unofficial-iconv TARGET_PATH share/unofficial-iconv)
+vcpkg_install_make()
 
 vcpkg_copy_pdbs()
+vcpkg_copy_tool_dependencies("${CURRENT_PACKAGES_DIR}/tools/${PORT}/bin")
+vcpkg_copy_tool_dependencies("${CURRENT_PACKAGES_DIR}/tools/${PORT}/debug/bin")
+
+file(COPY "${CMAKE_CURRENT_LIST_DIR}/vcpkg-cmake-wrapper.cmake" DESTINATION "${CURRENT_PACKAGES_DIR}/share/iconv")
+
+set(VCPKG_POLICY_ALLOW_RESTRICTED_HEADERS enabled)
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/share")
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/share/${PORT}") # share contains unneeded doc files
+
+# Please keep, the default usage is broken
+file(INSTALL "${CMAKE_CURRENT_LIST_DIR}/usage" DESTINATION "${CURRENT_PACKAGES_DIR}/share/${PORT}")
 
 # Handle copyright
-file(COPY ${SOURCE_PATH}/COPYING.LIB DESTINATION ${CURRENT_PACKAGES_DIR}/share/libiconv)
-file(RENAME ${CURRENT_PACKAGES_DIR}/share/libiconv/COPYING.LIB ${CURRENT_PACKAGES_DIR}/share/libiconv/copyright)
+vcpkg_install_copyright(FILE_LIST "${SOURCE_PATH}/COPYING.LIB" "${SOURCE_PATH}/COPYING" COMMENT "
+The libiconv and libcharset libraries and their header files are under LGPL,
+see COPYING.LIB below.
 
-vcpkg_test_cmake(PACKAGE_NAME unofficial-iconv)
+The iconv program and the documentation are under GPL, see COPYING below.")

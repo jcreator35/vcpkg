@@ -1,91 +1,67 @@
-include(vcpkg_common_functions)
-
-if(NOT VCPKG_TARGET_ARCHITECTURE STREQUAL x64)
-  message(FATAL_ERROR "Folly only supports the x64 architecture.")
+if(VCPKG_TARGET_IS_WINDOWS)
+    vcpkg_check_linkage(ONLY_STATIC_LIBRARY)
 endif()
-
-vcpkg_check_linkage(ONLY_STATIC_LIBRARY)
-
-# Required to run build/generate_escape_tables.py et al.
-vcpkg_find_acquire_program(PYTHON3)
-get_filename_component(PYTHON3_DIR "${PYTHON3}" DIRECTORY)
-vcpkg_add_to_path("${PYTHON3_DIR}")
 
 vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
     REPO facebook/folly
-    REF v2019.01.28.00
-    SHA512 cdd32d863bd98b31332fbcb25a548407857ffd8e611fb5d243821f43fcf240cb796fb4520dddec5537f398c10492e1ecb03de22f7ec0384b98411e9906f40d09
-    HEAD_REF master
+    REF "v${VERSION}"
+    SHA512 e396ceb0888749b3f2834db76216501349e63f95b08fa1041bb1c21354c271d2194a61a3a1a1db7c705a06876922f1cd80106cf38f210ef5ee520d16c3ce9a43
+    HEAD_REF main
     PATCHES
-        find-gflags.patch
-        no-werror.patch
-        # find-double-conversion.patch
+        fix-deps.patch
+        disable-uninitialized-resize-on-new-stl.patch
+        fix-unistd-include.patch
+        fix-absolute-dir.patch
+)
+file(REMOVE "${SOURCE_PATH}/CMake/FindFastFloat.cmake")
+file(REMOVE "${SOURCE_PATH}/CMake/FindFmt.cmake")
+file(REMOVE "${SOURCE_PATH}/CMake/FindLibsodium.cmake")
+file(REMOVE "${SOURCE_PATH}/CMake/FindZstd.cmake")
+file(REMOVE "${SOURCE_PATH}/CMake/FindSnappy.cmake")
+file(REMOVE "${SOURCE_PATH}/CMake/FindLZ4.cmake")
+file(REMOVE "${SOURCE_PATH}/build/fbcode_builder/CMake/FindDoubleConversion.cmake")
+file(REMOVE "${SOURCE_PATH}/build/fbcode_builder/CMake/FindGMock.cmake")
+file(REMOVE "${SOURCE_PATH}/build/fbcode_builder/CMake/FindGflags.cmake")
+file(REMOVE "${SOURCE_PATH}/build/fbcode_builder/CMake/FindGlog.cmake")
+file(REMOVE "${SOURCE_PATH}/build/fbcode_builder/CMake/FindLibEvent.cmake")
+file(REMOVE "${SOURCE_PATH}/build/fbcode_builder/CMake/FindSodium.cmake")
+file(REMOVE "${SOURCE_PATH}/build/fbcode_builder/CMake/FindZstd.cmake")
+
+string(COMPARE EQUAL "${VCPKG_CRT_LINKAGE}" "static" MSVC_USE_STATIC_RUNTIME)
+
+vcpkg_check_features(OUT_FEATURE_OPTIONS FEATURE_OPTIONS
+    FEATURES
+        "bzip2"      VCPKG_LOCK_FIND_PACKAGE_BZip2
+        "libaio"     VCPKG_LOCK_FIND_PACKAGE_LibAIO
+        "libsodium"  VCPKG_LOCK_FIND_PACKAGE_LIBSODIUM
+        "liburing"   VCPKG_LOCK_FIND_PACKAGE_LibUring
+        "lz4"        VCPKG_LOCK_FIND_PACKAGE_LZ4
+        "snappy"     VCPKG_LOCK_FIND_PACKAGE_SNAPPY
+        "zstd"       VCPKG_LOCK_FIND_PACKAGE_ZSTD
 )
 
-file(COPY
-    ${CMAKE_CURRENT_LIST_DIR}/FindLZ4.cmake
-    ${CMAKE_CURRENT_LIST_DIR}/FindSnappy.cmake
-    DESTINATION ${SOURCE_PATH}/CMake/
-)
-file(REMOVE ${SOURCE_PATH}/CMake/FindGFlags.cmake)
-
-if(VCPKG_CRT_LINKAGE STREQUAL static)
-    set(MSVC_USE_STATIC_RUNTIME ON)
-else()
-    set(MSVC_USE_STATIC_RUNTIME OFF)
-endif()
-
-set(FEATURE_OPTIONS)
-
-macro(feature FEATURENAME PACKAGENAME)
-    if("${FEATURENAME}" IN_LIST FEATURES)
-        list(APPEND FEATURE_OPTIONS -DCMAKE_DISABLE_FIND_PACKAGE_${PACKAGENAME}=OFF)
-    else()
-        list(APPEND FEATURE_OPTIONS -DCMAKE_DISABLE_FIND_PACKAGE_${PACKAGENAME}=ON)
-    endif()
-endmacro()
-
-feature(zlib ZLIB)
-feature(bzip2 BZip2)
-feature(lzma LibLZMA)
-feature(lz4 LZ4)
-feature(zstd Zstd)
-feature(snappy Snappy)
-
-vcpkg_configure_cmake(
-    SOURCE_PATH ${SOURCE_PATH}
-    PREFER_NINJA
+vcpkg_cmake_configure(
+    SOURCE_PATH "${SOURCE_PATH}"
     OPTIONS
         -DMSVC_USE_STATIC_RUNTIME=${MSVC_USE_STATIC_RUNTIME}
-        -DCMAKE_DISABLE_FIND_PACKAGE_LibDwarf=ON
-        -DCMAKE_DISABLE_FIND_PACKAGE_Libiberty=ON
-        -DCMAKE_DISABLE_FIND_PACKAGE_LibAIO=ON
-        -DLIBAIO_FOUND=OFF
-        -DLIBURCU_FOUND=OFF
-        -DCMAKE_DISABLE_FIND_PACKAGE_LibURCU=ON
         -DCMAKE_INSTALL_DIR=share/folly
+        -DCMAKE_POLICY_DEFAULT_CMP0167=NEW
+        -DVCPKG_LOCK_FIND_PACKAGE_fmt=ON
+        -DVCPKG_LOCK_FIND_PACKAGE_LibDwarf=OFF
+        -DVCPKG_LOCK_FIND_PACKAGE_Libiberty=OFF
+        -DVCPKG_LOCK_FIND_PACKAGE_LibUnwind=${VCPKG_TARGET_IS_LINUX}
+        -DVCPKG_LOCK_FIND_PACKAGE_ZLIB=ON
         ${FEATURE_OPTIONS}
+    MAYBE_UNUSED_VARIABLES
+        MSVC_USE_STATIC_RUNTIME
 )
 
-vcpkg_install_cmake(ADD_BIN_TO_PATH)
-
+vcpkg_cmake_install()
 vcpkg_copy_pdbs()
+vcpkg_fixup_pkgconfig()
+vcpkg_cmake_config_fixup()
 
-vcpkg_fixup_cmake_targets(CONFIG_PATH share/folly)
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/include")
 
-# Release folly-targets.cmake does not link to the right libraries in debug mode.
-# We substitute with generator expressions so that the right libraries are linked for debug and release.
-set(FOLLY_TARGETS_CMAKE "${CURRENT_PACKAGES_DIR}/share/folly/folly-targets.cmake")
-FILE(READ ${FOLLY_TARGETS_CMAKE} _contents)
-string(REPLACE "\${_IMPORT_PREFIX}/lib/zlib.lib" "ZLIB::ZLIB" _contents "${_contents}")
-string(REPLACE "\${_IMPORT_PREFIX}/lib/ssleay32.lib;\${_IMPORT_PREFIX}/lib/libeay32.lib" "ZLIB::ZLIB" _contents "${_contents}")
-string(REPLACE "\${_IMPORT_PREFIX}/lib/" "\${_IMPORT_PREFIX}/\$<\$<CONFIG:DEBUG>:debug/>lib/" _contents "${_contents}")
-string(REPLACE "-vc140-mt.lib" "-vc140-mt\$<\$<CONFIG:DEBUG>:-gd>.lib" _contents "${_contents}")
-FILE(WRITE ${FOLLY_TARGETS_CMAKE} "${_contents}")
-
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug/include)
-
-# Handle copyright
-file(COPY ${SOURCE_PATH}/LICENSE DESTINATION ${CURRENT_PACKAGES_DIR}/share/folly)
-file(RENAME ${CURRENT_PACKAGES_DIR}/share/folly/LICENSE ${CURRENT_PACKAGES_DIR}/share/folly/copyright)
+vcpkg_install_copyright(FILE_LIST "${SOURCE_PATH}/LICENSE")

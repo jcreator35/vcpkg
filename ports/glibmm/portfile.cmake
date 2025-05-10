@@ -1,40 +1,35 @@
-# Glib uses winapi functions not available in WindowsStore, so glibmm also
-include(vcpkg_common_functions)
-
-if (VCPKG_CMAKE_SYSTEM_NAME STREQUAL WindowsStore)
-    message(FATAL_ERROR "Error: UWP builds are currently not supported.")
-endif()
-
-vcpkg_check_linkage(ONLY_STATIC_LIBRARY)
-
-set(SOURCE_PATH ${CURRENT_BUILDTREES_DIR}/src/glibmm-2.52.1)
-vcpkg_download_distfile(ARCHIVE
-    URLS "http://ftp.gnome.org/pub/GNOME/sources/glibmm/2.52/glibmm-2.52.1.tar.xz"
-    FILENAME "glibmm-2.52.1.tar.xz"
-    SHA512 702158762cb28972b315ab98dc00a62e532bda08b6e76dc2a2556e8cb381c2021290891887a4af2fbff5a62bab4d50581be73037dc8e0dc47d5febd6cbeb7bda
-)
-vcpkg_extract_source_archive(${ARCHIVE})
-
-vcpkg_apply_patches(
-    SOURCE_PATH ${SOURCE_PATH}
-    PATCHES ${CMAKE_CURRENT_LIST_DIR}/glibmm-api-variant.patch
+# Glib uses winapi functions not available in WindowsStore
+string(REGEX MATCH "^([0-9]*[.][0-9]*)" GLIBMM_MAJOR_MINOR "${VERSION}")
+vcpkg_download_distfile(GLIBMM_ARCHIVE
+    URLS "https://ftp.gnome.org/pub/GNOME/sources/glibmm/${GLIBMM_MAJOR_MINOR}/glibmm-${VERSION}.tar.xz"
+    FILENAME "glibmm-${VERSION}.tar.xz"
+    SHA512 6f9ee91212077f3712a5ba99507479b5c99d021670e6bf298afc7239fafed8a40b3b17bfae96d9a7fa7fb199c3994b81b433c8275afe89839229a1fe20ba791e
 )
 
-file(COPY ${CMAKE_CURRENT_LIST_DIR}/CMakeLists.txt DESTINATION ${SOURCE_PATH})
+vcpkg_extract_source_archive(
+    SOURCE_PATH
+    ARCHIVE "${GLIBMM_ARCHIVE}"
+)
 
-vcpkg_configure_cmake(
-    SOURCE_PATH ${SOURCE_PATH}
-    PREFER_NINJA
+vcpkg_configure_meson(
+    SOURCE_PATH "${SOURCE_PATH}"
     OPTIONS
-        -DWARNINGS_HEADER=${CMAKE_CURRENT_LIST_DIR}/msvc_recommended_pragmas.h
-    OPTIONS_DEBUG
-        -DDISABLE_INSTALL_HEADERS=ON
+        -Dbuild-examples=false
+        -Dmsvc14x-parallel-installable=false
 )
 
-vcpkg_install_cmake()
-
+vcpkg_install_meson()
 vcpkg_copy_pdbs()
 
-# Handle copyright and readme
-file(INSTALL ${SOURCE_PATH}/COPYING DESTINATION ${CURRENT_PACKAGES_DIR}/share/glibmm RENAME copyright)
-file(INSTALL ${SOURCE_PATH}/README DESTINATION ${CURRENT_PACKAGES_DIR}/share/glibmm RENAME readme.txt)
+# intentionally 2.68 - glib does not install glibmm-2.7x files
+file(REMOVE_RECURSE
+    "${CURRENT_PACKAGES_DIR}/debug/lib/glibmm-2.68/proc"
+    "${CURRENT_PACKAGES_DIR}/lib/glibmm-2.68/proc"
+)
+
+vcpkg_fixup_pkgconfig()
+
+# Handle copyright and readmes
+file(INSTALL "${SOURCE_PATH}/COPYING" DESTINATION "${CURRENT_PACKAGES_DIR}/share/${PORT}" RENAME copyright)
+file(INSTALL "${SOURCE_PATH}/README.md" DESTINATION "${CURRENT_PACKAGES_DIR}/share/${PORT}" RENAME readme.txt)
+file(INSTALL "${SOURCE_PATH}/README.win32.md" DESTINATION "${CURRENT_PACKAGES_DIR}/share/${PORT}")

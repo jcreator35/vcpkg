@@ -1,60 +1,55 @@
-include(vcpkg_common_functions)
-set(SOURCE_PATH ${CURRENT_BUILDTREES_DIR}/src/QScintilla_gpl-2.10)
 vcpkg_download_distfile(ARCHIVE
-    URLS "https://sourceforge.net/projects/pyqt/files/QScintilla2/QScintilla-2.10/QScintilla_gpl-2.10.zip"
-    FILENAME "QScintilla_gpl-2.10.zip"
-    SHA512 7c580cfee03af1056f530af756a0ff9cc2396a5419fa23aecc66a6bc8809a4fb154788956220bb0b068a5c214d571c053271c3906d6d541196fbbf7c6dbec917
+    URLS "https://www.riverbankcomputing.com/static/Downloads/QScintilla/${VERSION}/QScintilla_src-${VERSION}.tar.gz"
+    FILENAME "QScintilla-${VERSION}.tar.gz"
+    SHA512 19e2f9e0a14947501c575018df368d24eb7f8c74e74faa5246db36415bf28dc0beee507ed0e73107c02b36a99bbaf55f0ef3349f479d2332e1b92b2c4a32788a
 )
-vcpkg_extract_source_archive(${ARCHIVE})
+
+vcpkg_extract_source_archive(
+    SOURCE_PATH
+    ARCHIVE ${ARCHIVE}
+    PATCHES
+        fix-static.patch
+)
 
 vcpkg_find_acquire_program(PYTHON3)
 
 # Add python3 to path
-get_filename_component(PYTHON_PATH ${PYTHON3} DIRECTORY)
-vcpkg_add_to_path(PREPEND ${PYTHON_PATH})
-vcpkg_add_to_path(${CURRENT_INSTALLED_DIR}/bin)
-vcpkg_add_to_path(${CURRENT_INSTALLED_DIR}/debug/bin)
+get_filename_component(PYTHON3_PATH ${PYTHON3} DIRECTORY)
+vcpkg_add_to_path(${PYTHON3_PATH})
 
-#Store build paths
-set(DEBUG_DIR "${CURRENT_BUILDTREES_DIR}/${TARGET_TRIPLET}-dbg")
-set(RELEASE_DIR "${CURRENT_BUILDTREES_DIR}/${TARGET_TRIPLET}-rel")
-
-vcpkg_configure_qmake(
-    SOURCE_PATH ${SOURCE_PATH}/Qt4Qt5
-    OPTIONS
-        CONFIG+=build_all
-        CONFIG-=hide_symbols
-        DEFINES+=SCI_NAMESPACE
+vcpkg_qmake_configure(
+    SOURCE_PATH "${SOURCE_PATH}/src"
+    QMAKE_OPTIONS
+        "CONFIG-=hide_symbols"
+        "DEFINES+=SCI_NAMESPACE"
 )
+vcpkg_qmake_install()
 
-if(CMAKE_HOST_WIN32)
-    vcpkg_build_qmake(
-        RELEASE_TARGETS release
-        DEBUG_TARGETS debug
-    )
-else()
-    vcpkg_build_qmake()
+file(GLOB DLLS "${CURRENT_PACKAGES_DIR}/lib/*.dll")
+if(DLLS)
+    file(COPY ${DLLS} DESTINATION "${CURRENT_PACKAGES_DIR}/bin")
+    file(REMOVE ${DLLS})
 endif()
 
-file(GLOB HEADER_FILES ${SOURCE_PATH}/Qt4Qt5/Qsci/*)
+file(GLOB DEBUG_DLLS "${CURRENT_PACKAGES_DIR}/debug/lib/*.dll")
+if(DEBUG_DLLS)
+    file(COPY ${DEBUG_DLLS} DESTINATION "${CURRENT_PACKAGES_DIR}/debug/bin")
+    file(REMOVE ${DEBUG_DLLS})
+endif()
+
+file(GLOB HEADER_FILES ${SOURCE_PATH}/src/Qsci/*)
 file(COPY ${HEADER_FILES} DESTINATION ${CURRENT_PACKAGES_DIR}/include/Qsci)
 
-if(CMAKE_HOST_WIN32)
-    configure_file(${RELEASE_DIR}/release/qscintilla2_qt5.lib ${CURRENT_PACKAGES_DIR}/lib/qscintilla2.lib COPYONLY)
-    configure_file(${DEBUG_DIR}/debug/qscintilla2_qt5.lib ${CURRENT_PACKAGES_DIR}/debug/lib/qscintilla2.lib COPYONLY)
-
-    if(VCPKG_LIBRARY_LINKAGE STREQUAL dynamic)
-        file(COPY ${RELEASE_DIR}/release/qscintilla2_qt5.dll DESTINATION ${CURRENT_PACKAGES_DIR}/bin)
-        file(COPY ${DEBUG_DIR}/debug/qscintilla2_qt5.dll DESTINATION ${CURRENT_PACKAGES_DIR}/debug/bin)
-    endif()
-elseif(CMAKE_HOST_APPLE)
-    configure_file(${RELEASE_DIR}/libqscintilla2_qt5.a ${CURRENT_PACKAGES_DIR}/lib/libqscintilla2.a COPYONLY)
-    configure_file(${DEBUG_DIR}/libqscintilla2_qt5.a ${CURRENT_PACKAGES_DIR}/debug/lib/libqscintilla2.a COPYONLY)
+if (VCPKG_TARGET_IS_WINDOWS AND (VCPKG_LIBRARY_LINKAGE STREQUAL dynamic))
+    vcpkg_replace_string(${CURRENT_PACKAGES_DIR}/include/Qsci/qsciglobal.h
+        "#if defined(QSCINTILLA_DLL)"
+        "#if 1"
+    )
 endif()
-
 
 vcpkg_copy_pdbs()
 
+file(INSTALL "${CMAKE_CURRENT_LIST_DIR}/unofficial-qscintilla-config.cmake" DESTINATION "${CURRENT_PACKAGES_DIR}/share/unofficial-${PORT}")
+
 # Handle copyright
-file(COPY ${SOURCE_PATH}/LICENSE DESTINATION ${CURRENT_PACKAGES_DIR}/share/qscintilla)
-file(RENAME ${CURRENT_PACKAGES_DIR}/share/qscintilla/LICENSE ${CURRENT_PACKAGES_DIR}/share/qscintilla/copyright)
+vcpkg_install_copyright(FILE_LIST "${SOURCE_PATH}/LICENSE")

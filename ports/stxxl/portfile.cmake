@@ -1,6 +1,6 @@
-include(vcpkg_common_functions)
-
-vcpkg_check_linkage(ONLY_STATIC_LIBRARY)
+if(VCPKG_TARGET_IS_WINDOWS)
+    vcpkg_check_linkage(ONLY_STATIC_LIBRARY)
+endif()
 
 vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
@@ -11,12 +11,16 @@ vcpkg_from_github(
     PATCHES
         # This patch can be removed when stxxl/stxxl/#95 is accepted
         fix-include-dir.patch
+        0001-fix-visual-studio.patch
 )
 
-vcpkg_configure_cmake(
-    SOURCE_PATH ${SOURCE_PATH}
+string(COMPARE EQUAL "${VCPKG_LIBRARY_LINKAGE}" "static" BUILD_STATIC_LIBS)
+
+vcpkg_cmake_configure(
+    SOURCE_PATH "${SOURCE_PATH}"
     OPTIONS
-        -DBUILD_STATIC_LIBS=ON
+        -DINSTALL_CMAKE_DIR:STRING=share/${PORT}
+        -DBUILD_STATIC_LIBS=${BUILD_STATIC_LIBS}
         -DBUILD_EXAMPLES=OFF
         -DBUILD_TESTS=OFF
         -DBUILD_EXTRAS=OFF
@@ -31,42 +35,19 @@ vcpkg_configure_cmake(
     OPTIONS_DEBUG
         -DSTXXL_DEBUG_ASSERTIONS=ON
     OPTIONS_RELEASE
-        -DSTXXL_DEBUG_ASSERTIONS=OFF    
+        -DSTXXL_DEBUG_ASSERTIONS=OFF
 )
 
-vcpkg_install_cmake()
+vcpkg_cmake_install()
+vcpkg_copy_pdbs()
+vcpkg_fixup_pkgconfig()
+vcpkg_cmake_config_fixup()
 
-if(EXISTS ${CURRENT_PACKAGES_DIR}/cmake)
-    vcpkg_fixup_cmake_targets(CONFIG_PATH cmake)
-endif()
-if(EXISTS ${CURRENT_PACKAGES_DIR}/lib/cmake/${PORT})
-    vcpkg_fixup_cmake_targets(CONFIG_PATH lib/cmake/${PORT})
-endif()
-
-vcpkg_replace_string(
-    ${CURRENT_PACKAGES_DIR}/share/${PORT}/stxxl-config.cmake
-    "\${STXXL_CMAKE_DIR}/../include"
-    "\${STXXL_CMAKE_DIR}/../../include"
-)
-
-if(CMAKE_HOST_WIN32)
-    set(EXECUTABLE_SUFFIX ".exe")
-else()
-    set(EXECUTABLE_SUFFIX "")
-endif()
-
-file(INSTALL ${CURRENT_PACKAGES_DIR}/bin/stxxl_tool${EXECUTABLE_SUFFIX}
-    DESTINATION ${CURRENT_PACKAGES_DIR}/tools/${PORT})
-vcpkg_copy_tool_dependencies(${CURRENT_PACKAGES_DIR}/tools/${PORT})
+vcpkg_copy_tools(TOOL_NAMES stxxl_tool AUTO_CLEAN)
 
 file(REMOVE_RECURSE
-    ${CURRENT_PACKAGES_DIR}/debug/include
-    ${CURRENT_PACKAGES_DIR}/debug/bin
-    ${CURRENT_PACKAGES_DIR}/debug/share
-    ${CURRENT_PACKAGES_DIR}/bin
+    "${CURRENT_PACKAGES_DIR}/debug/include"
+    "${CURRENT_PACKAGES_DIR}/debug/share"
 )
 
-# Handle copyright
-configure_file(${SOURCE_PATH}/LICENSE_1_0.txt ${CURRENT_PACKAGES_DIR}/share/${PORT}/copyright COPYONLY)
-
-vcpkg_copy_pdbs()
+vcpkg_install_copyright(FILE_LIST "${SOURCE_PATH}/LICENSE_1_0.txt")

@@ -1,38 +1,30 @@
-include(vcpkg_common_functions)
-
 vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
     REPO hyperrealm/libconfig
-    REF v1.7.2
-    SHA512 9df57355c2d08381b4a0a6366f0db3633fbe8f73c2bb8c370c040b0bae96ce89ee4ac6c17a5a247fed855d890fa383e5b70cb5573fc9cfc62194d5b94e161cee
+    REF "v${VERSION}"
+    SHA512 7899d3898e1741d90cf2381561b172ec6ba2bcc47d1b3e6058bcef74d73634d9be33eb8f99a58c7af15ac99e56800510edf3c412d9c1f136e6a3ab744455b992
     HEAD_REF master
+    PATCHES
+        static-build.diff
+        include-stdint.patch
 )
 
-file(COPY ${CMAKE_CURRENT_LIST_DIR}/CMakeLists.txt DESTINATION ${SOURCE_PATH})
-
-
-vcpkg_configure_cmake(
-  SOURCE_PATH ${SOURCE_PATH}
-  OPTIONS_DEBUG -DDISABLE_INSTALL_HEADERS=ON
+vcpkg_cmake_configure(
+    SOURCE_PATH "${SOURCE_PATH}"
+    OPTIONS
+        -DBUILD_EXAMPLES=OFF
+        -DBUILD_TESTS=OFF
 )
-
-vcpkg_install_cmake()
-
-foreach(FILE ${CURRENT_PACKAGES_DIR}/include/libconfig.h++ ${CURRENT_PACKAGES_DIR}/include/libconfig.h)
-  file(READ ${FILE} _contents)
-  string(REPLACE "defined(LIBCONFIGXX_EXPORTS)" "0" _contents "${_contents}")
-  string(REPLACE "defined(LIBCONFIG_EXPORTS)" "0" _contents "${_contents}")
-
-  if(VCPKG_LIBRARY_LINKAGE STREQUAL dynamic)
-    string(REPLACE "defined(LIBCONFIGXX_STATIC)" "0" _contents "${_contents}")
-    string(REPLACE "defined(LIBCONFIG_STATIC)" "0" _contents "${_contents}")
-  else()
-    string(REPLACE "defined(LIBCONFIGXX_STATIC)" "1" _contents "${_contents}")
-    string(REPLACE "defined(LIBCONFIG_STATIC)" "1" _contents "${_contents}")
-  endif()
-  file(WRITE ${FILE} "${_contents}")
-endforeach()
-
-file(INSTALL ${SOURCE_PATH}/LICENSE DESTINATION ${CURRENT_PACKAGES_DIR}/share/libconfig RENAME copyright)
-
+vcpkg_cmake_install()
 vcpkg_copy_pdbs()
+vcpkg_cmake_config_fixup(CONFIG_PATH lib/cmake/libconfig)
+vcpkg_fixup_pkgconfig()
+
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/include")
+
+if(VCPKG_LIBRARY_LINKAGE STREQUAL "static")
+    vcpkg_replace_string("${CURRENT_PACKAGES_DIR}/include/libconfig.h" "defined(LIBCONFIG_STATIC)" "1")
+    vcpkg_replace_string("${CURRENT_PACKAGES_DIR}/include/libconfig.h++" "defined(LIBCONFIGXX_STATIC)" "1")
+endif()
+
+vcpkg_install_copyright(FILE_LIST "${SOURCE_PATH}/LICENSE")

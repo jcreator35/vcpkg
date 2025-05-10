@@ -1,12 +1,24 @@
-include(vcpkg_common_functions)
-
+# Download the xlnt source code
 vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
-    REPO tfussell/xlnt
-    REF v1.3.0
-    SHA512 716b93a6138daf1e293980a3c26801bfd00aa713afdd9cbe9be672ccff8c86b69b26eb0f3e8259bd0844e04d0e6148b64467d7db6815c76ecf412715d506786f
+    REPO xlnt-community/xlnt
+    REF "v${VERSION}"
+    SHA512 2d016416447b56c3902fc86c0441fd1d10cb86c3a542a2a38929e32f8f55470c33e4a3938f9c47b1a672ac4d6784a981c4738a61fd076622a2baa64dbc632810
+    HEAD_REF master
+    PATCHES
+        fix-not-found-include.patch
+        fix-configure-dependencies.patch
+)
+
+# Download the libstudxml dependencies and copy it to the third-party folder as expected by xlnt (outside vcpkg libstudxml is included as a git submodule)
+vcpkg_from_git(
+    OUT_SOURCE_PATH SOURCE_PATH_LIBSTUDXML
+    URL https://git.codesynthesis.com/libstudxml/libstudxml.git
+    FETCH_REF v1.1.0-b.10+2
+    REF c8015cb75d7d3b3c499ec86b84d099c4c1ab942b
     HEAD_REF master
 )
+file(COPY "${SOURCE_PATH_LIBSTUDXML}/" DESTINATION "${SOURCE_PATH}/third-party/libstudxml")
 
 if(VCPKG_LIBRARY_LINKAGE STREQUAL dynamic)
     set(STATIC OFF)
@@ -14,16 +26,22 @@ else()
     set(STATIC ON)
 endif()
 
-vcpkg_configure_cmake(
-    SOURCE_PATH ${SOURCE_PATH}
+vcpkg_cmake_configure(
+    SOURCE_PATH "${SOURCE_PATH}"
+    DISABLE_PARALLEL_CONFIGURE
     OPTIONS -DTESTS=OFF -DSAMPLES=OFF -DBENCHMARKS=OFF -DSTATIC=${STATIC}
 )
 
-vcpkg_install_cmake()
+vcpkg_cmake_install()
 
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug/include)
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug/share)
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/share/man)
-file(INSTALL ${SOURCE_PATH}/LICENSE.md DESTINATION ${CURRENT_PACKAGES_DIR}/share/xlnt RENAME copyright)
+vcpkg_cmake_config_fixup(CONFIG_PATH lib/cmake/xlnt)
+
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/include")
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/share")
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/share/man")
+vcpkg_install_copyright(FILE_LIST "${SOURCE_PATH}/LICENSE.md")
+file(INSTALL "${CMAKE_CURRENT_LIST_DIR}/usage" DESTINATION "${CURRENT_PACKAGES_DIR}/share/${PORT}")
 
 vcpkg_copy_pdbs()
+
+vcpkg_fixup_pkgconfig()

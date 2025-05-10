@@ -1,45 +1,108 @@
-include(vcpkg_common_functions)
-set(SOURCE_PATH ${CURRENT_BUILDTREES_DIR}/src/apr-util-1.6.0)
 vcpkg_download_distfile(ARCHIVE
-  URLS "https://archive.apache.org/dist/apr/apr-util-1.6.0-win32-src.zip"
-  FILENAME "apr-util-1.6.0-win32-src.zip"
-  SHA512 98679ea181d3132020713481703bbefa0c174e0b2a0df65dfdd176e9771935e1f9455c4242bac19dded9414abe2b9d293fcc674ab16f96d8987bcf26346fce3a
-)
-vcpkg_extract_source_archive(${ARCHIVE})
-
-
-vcpkg_apply_patches(
-  SOURCE_PATH ${SOURCE_PATH}
-  PATCHES "${CMAKE_CURRENT_LIST_DIR}/use-vcpkg-expat.patch"
+  URLS "https://archive.apache.org/dist/apr/apr-util-${VERSION}.tar.bz2"
+    FILENAME "apr-util-${VERSION}.tar.bz2"
+    SHA512 8050a481eeda7532ef3751dbd8a5aa6c48354d52904a856ef9709484f4b0cc2e022661c49ddf55ec58253db22708ee0607dfa7705d9270e8fee117ae4f06a0fe
 )
 
-if(VCPKG_LIBRARY_LINKAGE STREQUAL dynamic)
-    vcpkg_configure_cmake(
-      SOURCE_PATH ${SOURCE_PATH}
-      PREFER_NINJA
-      OPTIONS -DAPU_DECLARE_EXPORT=ON
-      OPTIONS_DEBUG -DDISABLE_INSTALL_HEADERS=ON
+vcpkg_check_features(OUT_FEATURE_OPTIONS FEATURE_OPTIONS
+FEATURES
+    crypto APU_HAVE_CRYPTO
+    crypto CMAKE_REQUIRE_FIND_PACKAGE_OpenSSL
+)
+
+if(VCPKG_TARGET_IS_WINDOWS)
+    vcpkg_extract_source_archive(
+        SOURCE_PATH
+        ARCHIVE "${ARCHIVE}"
+        PATCHES
+            use-vcpkg-expat.patch
+            apr.patch
+            unglue.patch
     )
+
+    vcpkg_cmake_configure(
+      SOURCE_PATH "${SOURCE_PATH}"
+      OPTIONS
+        ${FEATURE_OPTIONS}
+      OPTIONS_DEBUG
+        -DDISABLE_INSTALL_HEADERS=ON
+    )
+
+    vcpkg_cmake_install()
+    vcpkg_copy_pdbs()
+
+    # Upstream include/apu.h.in has:
+    # ```
+    #elif defined(APU_DECLARE_STATIC)
+    #define APU_DECLARE(type)            type __stdcall
+    #define APU_DECLARE_NONSTD(type)     type __cdecl
+    #define APU_DECLARE_DATA
+    #elif defined(APU_DECLARE_EXPORT)
+    #define APU_DECLARE(type)            __declspec(dllexport) type __stdcall
+    #define APU_DECLARE_NONSTD(type)     __declspec(dllexport) type __cdecl
+    #define APU_DECLARE_DATA             __declspec(dllexport)
+    #else
+    #define APU_DECLARE(type)            __declspec(dllimport) type __stdcall
+    #define APU_DECLARE_NONSTD(type)     __declspec(dllimport) type __cdecl
+    #define APU_DECLARE_DATA             __declspec(dllimport)
+    #endif
+    # ```
+    # When building, BUILD_SHARED_LIBS sets APU_DECLARE_STATIC to 0 and APU_DECLARE_EXPORT to 1
+    # Not BUILD_SHARED_LIBS sets APU_DECLARE_STATIC to 1 and APU_DECLARE_EXPORT to 0
+    # When consuming APU_DECLARE_EXPORT is always 0 (assumed), so we need only embed the static or not setting
+    # into the resulting headers:
+    if(VCPKG_LIBRARY_LINKAGE STREQUAL dynamic)
+        vcpkg_replace_string("${CURRENT_PACKAGES_DIR}/include/apu.h" "defined(APU_DECLARE_STATIC)" "0")
+    else()
+        vcpkg_replace_string("${CURRENT_PACKAGES_DIR}/include/apu.h" "defined(APU_DECLARE_STATIC)" "1")
+    endif()
 else()
-    vcpkg_configure_cmake(
-      SOURCE_PATH ${SOURCE_PATH}
-      PREFER_NINJA
-      OPTIONS -DAPU_DECLARE_STATIC=ON
-      OPTIONS_DEBUG -DDISABLE_INSTALL_HEADERS=ON
+    vcpkg_extract_source_archive(
+        SOURCE_PATH
+        ARCHIVE "${ARCHIVE}"
     )
+
+    if ("crypto" IN_LIST FEATURES)
+        set(CRYPTO_OPTIONS 
+            "--with-crypto=yes"
+            "--with-openssl=${CURRENT_INSTALLED_DIR}")
+    else()
+        set(CRYPTO_OPTIONS "--with-crypto=no")
+    endif()
+
+    # To cross-compile you will need a triplet file that locates the tool chain and sets --host and --cache parameters of "./configure".
+    # The ${VCPKG_PLATFORM_TOOLSET}.cache file must have been generated on the targeted host using "./configure -C".
+    # For example, to target aarch64-linux-gnu, triplets/aarch64-linux-gnu.cmake should contain (beyond the standard content):
+    # set(VCPKG_PLATFORM_TOOLSET aarch64-linux-gnu)
+    # set(VCPKG_CHAINLOAD_TOOLCHAIN_FILE ${MY_CROSS_DIR}/cmake/Toolchain-${VCPKG_PLATFORM_TOOLSET}.cmake)
+    # set(CONFIGURE_PARAMETER_1 --host=${VCPKG_PLATFORM_TOOLSET})
+    # set(CONFIGURE_PARAMETER_2 --cache-file=${MY_CROSS_DIR}/autoconf/${VCPKG_PLATFORM_TOOLSET}.cache)
+    if(CONFIGURE_PARAMETER_1)
+        message(STATUS "Configuring apr-util with ${CONFIGURE_PARAMETER_1} ${CONFIGURE_PARAMETER_2} ${CONFIGURE_PARAMETER_3}")
+    else()
+        message(STATUS "Configuring apr-util")
+    endif()
+
+    vcpkg_configure_make(
+        SOURCE_PATH "${SOURCE_PATH}"
+        OPTIONS
+            "--prefix=${CURRENT_INSTALLED_DIR}"
+            ${CRYPTO_OPTIONS}
+            "--with-apr=${CURRENT_INSTALLED_DIR}/tools/apr"
+            "--with-expat=${CURRENT_INSTALLED_DIR}"
+            "${CONFIGURE_PARAMETER_1}"
+            "${CONFIGURE_PARAMETER_2}"
+            "${CONFIGURE_PARAMETER_3}"
+    )
+
+    vcpkg_install_make()
+    vcpkg_fixup_pkgconfig()
+    vcpkg_replace_string("${CURRENT_PACKAGES_DIR}/tools/apr-util/bin/apu-1-config" "${CURRENT_INSTALLED_DIR}" "`dirname $0`/../../..")
+    vcpkg_replace_string("${CURRENT_PACKAGES_DIR}/tools/apr-util/bin/apu-1-config" "${CURRENT_BUILDTREES_DIR}" "not/existing")
+    if(NOT VCPKG_BUILD_TYPE)
+      vcpkg_replace_string("${CURRENT_PACKAGES_DIR}/tools/apr-util/debug/bin/apu-1-config" "${CURRENT_INSTALLED_DIR}" "`dirname $0`/../../../..")
+      vcpkg_replace_string("${CURRENT_PACKAGES_DIR}/tools/apr-util/debug/bin/apu-1-config" "${CURRENT_BUILDTREES_DIR}" "not/existing")
+    endif()
 endif()
 
-vcpkg_install_cmake()
-
-file(READ ${CURRENT_PACKAGES_DIR}/include/apu.h  APU_H)
-if(VCPKG_LIBRARY_LINKAGE STREQUAL dynamic)
-  string(REPLACE "defined(APU_DECLARE_EXPORT)" "1" APU_H "${APU_H}")
-else()
-  string(REPLACE "defined(APU_DECLARE_STATIC)" "1" APU_H "${APU_H}")
-endif()
-file(WRITE ${CURRENT_PACKAGES_DIR}/include/apu.h "${APU_H}")
-
-
-file(INSTALL ${SOURCE_PATH}/LICENSE DESTINATION ${CURRENT_PACKAGES_DIR}/share/apr-util RENAME copyright)
-
-vcpkg_copy_pdbs()
+file(INSTALL "${SOURCE_PATH}/LICENSE" DESTINATION "${CURRENT_PACKAGES_DIR}/share/${PORT}" RENAME copyright)

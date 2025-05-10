@@ -1,53 +1,72 @@
-include(vcpkg_common_functions)
-
-set(IDN2_VERSION 2.1.1)
-set(IDN2_FILENAME libidn2-${IDN2_VERSION}a.tar.gz)
+set(IDN2_FILENAME "libidn2-${VERSION}.tar.gz")
 
 vcpkg_download_distfile(ARCHIVE
-    URLS "http://ftp.gnu.org/gnu/libidn/${IDN2_FILENAME}"
+    URLS "https://ftp.gnu.org/gnu/libidn/${IDN2_FILENAME}"
+         "https://www.mirrorservice.org/sites/ftp.gnu.org/gnu/libidn/${IDN2_FILENAME}"
     FILENAME "${IDN2_FILENAME}"
-    SHA512 404a739e33d324f700ac8e8119de3feef0de778bbb11be09049cb64eab447cd101883f6d489cca1e88c230f58bcaf9758fe102e571b6501450aa750ec2a4a9c6
+    SHA512 eab5702bc0baed45492f8dde43a4d2ea3560ad80645e5f9e0cfa8d3b57bccd7fd782d04638e000ba07924a5d9f85e760095b55189188c4017b94705bef9b4a66
 )
 
-vcpkg_extract_source_archive_ex(
-    OUT_SOURCE_PATH SOURCE_PATH
-    ARCHIVE ${ARCHIVE}
-    REF ${IDN2_VERSION}
+vcpkg_extract_source_archive(SOURCE_PATH
+    ARCHIVE "${ARCHIVE}"
+    SOURCE_BASE "v${VERSION}"
+    PATCHES
+        disable-subdirs.patch
+        fix-uwp.patch
 )
 
-file(COPY ${CMAKE_CURRENT_LIST_DIR}/CMakeLists.txt DESTINATION ${SOURCE_PATH})
-file(COPY ${CMAKE_CURRENT_LIST_DIR}/string.h DESTINATION ${SOURCE_PATH}/gl)
+vcpkg_list(SET options)
+if("nls" IN_LIST FEATURES)
+    vcpkg_list(APPEND options "--enable-nls")
+else()
+    vcpkg_list(APPEND options "--disable-nls")
+endif()
+set(ENV{AUTOPOINT} true) # true, the program
 
-configure_file(${CMAKE_CURRENT_LIST_DIR}/config.h ${SOURCE_PATH})
+if(VCPKG_LIBRARY_LINKAGE STREQUAL "static")
+    vcpkg_list(APPEND options "CPPFLAGS=\$CPPFLAGS -DIDN2_STATIC")
+endif()
 
-function(simple_copy_template_header FILE_PATH BASE_NAME)
-    if(NOT EXISTS ${FILE_PATH}/${BASE_NAME}.h)
-       if(EXISTS ${FILE_PATH}/${BASE_NAME}.in.h)
-           configure_file(${FILE_PATH}/${BASE_NAME}.in.h ${FILE_PATH}/${BASE_NAME}.h)
-       endif()
-    endif()
-endfunction()
-
-# There seems to be no difference between source and destination files after 'configure'
-# apart from auto-generated notification at the top. So why not just do a simple copy.
-simple_copy_template_header(${SOURCE_PATH}/unistring uniconv)
-simple_copy_template_header(${SOURCE_PATH}/unistring unictype)
-simple_copy_template_header(${SOURCE_PATH}/unistring uninorm)
-simple_copy_template_header(${SOURCE_PATH}/unistring unistr)
-simple_copy_template_header(${SOURCE_PATH}/unistring unitypes)
-simple_copy_template_header(${SOURCE_PATH}/unistring alloca)
-
-vcpkg_configure_cmake(
-    SOURCE_PATH ${SOURCE_PATH}
-    PREFER_NINJA
+set(ENV{GTKDOCIZE} true)
+vcpkg_make_configure(
+    SOURCE_PATH "${SOURCE_PATH}"
+    AUTORECONF
+    COPY_SOURCE # include dir order problem
+    OPTIONS
+        ${options}
+        --disable-gtk-doc
+        --disable-doc
+        --disable-gcc-warnings
+    OPTIONS_RELEASE
+        "--with-libiconv-prefix=${CURRENT_INSTALLED_DIR}"
+        "--with-libunistring-prefix=${CURRENT_INSTALLED_DIR}"
+    OPTIONS_DEBUG
+        "--with-libiconv-prefix=${CURRENT_INSTALLED_DIR}/debug"
+        "--with-libunistring-prefix=${CURRENT_INSTALLED_DIR}/debug"
+        "CFLAGS=\$CFLAGS -I${CURRENT_INSTALLED_DIR}/include"
 )
 
-vcpkg_install_cmake()
+vcpkg_make_install()
+vcpkg_fixup_pkgconfig()
+vcpkg_copy_tool_dependencies("${CURRENT_PACKAGES_DIR}/tools/${PORT}/bin")
 
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug/include)
+if(VCPKG_LIBRARY_LINKAGE STREQUAL "static")
+    vcpkg_replace_string("${CURRENT_PACKAGES_DIR}/include/idn2.h" "defined IDN2_STATIC" "1")
+endif()
 
-# License and man
-file(INSTALL ${SOURCE_PATH}/COPYING DESTINATION ${CURRENT_PACKAGES_DIR}/share/libidn2 RENAME copyright)
-file(INSTALL ${SOURCE_PATH}/doc/libidn2.pdf DESTINATION ${CURRENT_PACKAGES_DIR}/share/libidn2)
+file(REMOVE_RECURSE
+    "${CURRENT_PACKAGES_DIR}/debug/share"
+    "${CURRENT_PACKAGES_DIR}/tools/${PORT}/debug"
+)
 
-vcpkg_copy_pdbs()
+vcpkg_install_copyright(
+    COMMENT [[
+The installed C library libidn2 is dual-licensed under LGPLv3+|GPLv2+,
+while the rest of the package is GPLv3+.
+]]
+    FILE_LIST
+        "${SOURCE_PATH}/COPYING"
+        "${SOURCE_PATH}/COPYING.LESSERv3"
+        "${SOURCE_PATH}/COPYINGv2"
+        "${SOURCE_PATH}/COPYING.unicode"
+)

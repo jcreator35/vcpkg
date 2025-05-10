@@ -1,77 +1,56 @@
-include(vcpkg_common_functions)
-
-if(VCPKG_CMAKE_SYSTEM_NAME STREQUAL WindowsStore)
-    message(FATAL_ERROR "WindowsStore not supported")
-endif()
-
-set(VERSION 0.7.6)
-vcpkg_download_distfile(ARCHIVE
-    URLS "https://www.libssh.org/files/0.7/libssh-${VERSION}.tar.xz"
-    FILENAME "libssh-${VERSION}.tar.xz"
-    SHA512 2a01402b5a9fab9ecc29200544ed45d3f2c40871ed1c8241ca793f8dc7fdb3ad2150f6a522c4321affa9b8778e280dc7ed10f76adfc4a73f0751ae735a42f56c
+vcpkg_download_distfile(distfile
+    URLS https://www.libssh.org/files/0.10/libssh-${VERSION}.tar.xz
+    FILENAME libssh-${VERSION}.tar.xz
+    SHA512 40c62d63c44e882999b71552c237d73fc7364313bd00b15a211a34aeff1b73693da441d2c8d4e40108d00fb7480ec7c5b6d472f9c0784b2359a179632ab0d6c1
 )
-
-vcpkg_download_distfile(WINPATCH
-    URLS "https://bugs.libssh.org/rLIBSSHf81ca6161223e3566ce78a427571235fb6848fe9?diff=1"
-    FILENAME "libssh-f81ca616.patch"
-    SHA512 f3f6088f8f1bf8fe6226c1aa7b355d877be7f2aa9482c5e3de74b6a35fc5b28d8f89221d3afa5a5d3a5900519a86e5906516667ed22ad98f058616a8120999cd
-)
-
-vcpkg_extract_source_archive_ex(
-    OUT_SOURCE_PATH SOURCE_PATH
-    ARCHIVE ${ARCHIVE}
-    REF ${VERSION}
+vcpkg_extract_source_archive(SOURCE_PATH
+    ARCHIVE "${distfile}"
     PATCHES
-        build-one-flavor.patch
-        only-one-flavor-threads.patch
-        "${WINPATCH}"
-        missing-includes.patch
-        fix-config-cmake.patch
+        0001-export-pkgconfig-file.patch
+        0003-no-source-write.patch
+        0004-file-permissions-constants.patch
+        android-glob-tilde.diff
 )
 
-string(COMPARE EQUAL "${VCPKG_LIBRARY_LINKAGE}" "static" WITH_STATIC_LIB)
+vcpkg_check_features(OUT_FEATURE_OPTIONS FEATURE_OPTIONS
+    FEATURES
+        pcap    WITH_PCAP
+        server  WITH_SERVER
+        zlib    WITH_ZLIB
+)
 
-if(zlib IN_LIST FEATURES)
-	set(WITH_ZLIB ON)
-else()
-	set(WITH_ZLIB OFF)
-endif()
-
-vcpkg_configure_cmake(
-    SOURCE_PATH ${SOURCE_PATH}
-    PREFER_NINJA
+vcpkg_cmake_configure(
+    SOURCE_PATH "${SOURCE_PATH}"
     OPTIONS
-        -DWITH_STATIC_LIB=${WITH_STATIC_LIB}
+        ${FEATURE_OPTIONS}
+        -DCMAKE_REQUIRE_FIND_PACKAGE_OpenSSL=ON
         -DWITH_EXAMPLES=OFF
-        -DWITH_TESTING=OFF
-        -DWITH_NACL=OFF
         -DWITH_GSSAPI=OFF
-        -DWITH_ZLIB=${WITH_ZLIB}
-        -DCMAKE_INSTALL_DIR=share/libssh
+        -DWITH_NACL=OFF
+        -DWITH_SYMBOL_VERSIONING=OFF
 )
 
-vcpkg_install_cmake()
+vcpkg_cmake_install()
 vcpkg_copy_pdbs()
+vcpkg_fixup_pkgconfig()
 
 if(VCPKG_LIBRARY_LINKAGE STREQUAL "static")
-    if(EXISTS ${CURRENT_PACKAGES_DIR}/lib/static/ssh.lib)
-        file(RENAME ${CURRENT_PACKAGES_DIR}/lib/static/ssh.lib ${CURRENT_PACKAGES_DIR}/lib/ssh.lib)
-    endif()
-    if(EXISTS ${CURRENT_PACKAGES_DIR}/debug/lib/static/ssh.lib)
-        file(RENAME ${CURRENT_PACKAGES_DIR}/debug/lib/static/ssh.lib ${CURRENT_PACKAGES_DIR}/debug/lib/ssh.lib)
-    endif()
-    file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/bin ${CURRENT_PACKAGES_DIR}/debug/bin)
-
-    file(READ ${CURRENT_PACKAGES_DIR}/include/libssh/libssh.h _contents)
-    string(REPLACE "#ifdef LIBSSH_STATIC" "#if 1" _contents "${_contents}")
-    file(WRITE ${CURRENT_PACKAGES_DIR}/include/libssh/libssh.h "${_contents}")
+    vcpkg_replace_string("${CURRENT_PACKAGES_DIR}/include/libssh/libssh.h"
+        "#ifdef LIBSSH_STATIC"
+        "#if 1"
+    )
 endif()
 
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/lib/static ${CURRENT_PACKAGES_DIR}/debug/lib/static)
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug/include)
+vcpkg_cmake_config_fixup(CONFIG_PATH lib/cmake/libssh)
 
-# The installed cmake config files are nonfunctional (0.7.5)
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug/share)
+file(READ "${CURRENT_PACKAGES_DIR}/share/libssh/libssh-config.cmake" cmake_config)
+file(WRITE "${CURRENT_PACKAGES_DIR}/share/libssh/libssh-config.cmake" "
+include(CMakeFindDependencyMacro)
+set(THREADS_PREFER_PTHREAD_FLAG ON)
+find_dependency(Threads)
+${cmake_config}"
+)
 
-file(INSTALL ${SOURCE_PATH}/COPYING DESTINATION ${CURRENT_PACKAGES_DIR}/share/libssh RENAME copyright)
-file(INSTALL ${CURRENT_PORT_DIR}/usage DESTINATION ${CURRENT_PACKAGES_DIR}/share/libssh)
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/include")
+
+vcpkg_install_copyright(FILE_LIST "${SOURCE_PATH}/COPYING")

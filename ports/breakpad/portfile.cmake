@@ -1,26 +1,69 @@
-include(vcpkg_common_functions)
-
 vcpkg_check_linkage(ONLY_STATIC_LIBRARY)
 
+string(REPLACE "-" "." BREAKPAD-VERSION "${VERSION}")
 vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
     REPO google/breakpad
-    REF 54fa71efbe50fb2b58096d871575b59e12edba6d
-    SHA512 ecd1c6c5cc0e3984d05fe86ec11172e93b0e31c39ce0af9d0de08b8d03083686e2288e0cd787180c599446c277e58f48550ce4ab718019576c64fc403a592745
+    REF "v${BREAKPAD-VERSION}"
+    SHA512 88c691983c6c92fd5321d729c8eec059914293de0e91fe1d429a6247f3b7299f32ec4938eccbbe2c95a9ca507db14d73a1c9798d5fce79a8b474c3c216f0951a
     HEAD_REF master
+    PATCHES
+        add-algorithm-1.patch
 )
 
-file(COPY ${CMAKE_CURRENT_LIST_DIR}/CMakeLists.txt DESTINATION ${SOURCE_PATH})
+if(VCPKG_HOST_IS_LINUX OR VCPKG_TARGET_IS_LINUX OR VCPKG_TARGET_IS_ANDROID)
+    vcpkg_from_git(
+        OUT_SOURCE_PATH LSS_SOURCE_PATH
+        URL https://chromium.googlesource.com/linux-syscall-support
+        REF 9719c1e1e676814c456b55f5f070eabad6709d31
+    )
 
-vcpkg_configure_cmake(
-    SOURCE_PATH ${SOURCE_PATH}
-    PREFER_NINJA
+    file(RENAME "${LSS_SOURCE_PATH}" "${SOURCE_PATH}/src/third_party/lss")
+endif()
+
+file(COPY
+        "${CMAKE_CURRENT_LIST_DIR}/check_getcontext.cc"
+        "${CMAKE_CURRENT_LIST_DIR}/CMakeLists.txt"
+        "${CMAKE_CURRENT_LIST_DIR}/unofficial-breakpadConfig.cmake"
+    DESTINATION
+    "${SOURCE_PATH}")
+
+vcpkg_check_features(OUT_FEATURE_OPTIONS FEATURE_OPTIONS
+    FEATURES
+        "tools" INSTALL_TOOLS
 )
 
-vcpkg_install_cmake()
+vcpkg_cmake_configure(
+    SOURCE_PATH "${SOURCE_PATH}"
+    OPTIONS
+        ${FEATURE_OPTIONS}
+    OPTIONS_RELEASE
+        -DINSTALL_HEADERS=ON
+)
 
-vcpkg_fixup_cmake_targets(CONFIG_PATH share/unofficial-breakpad TARGET_PATH share/unofficial-breakpad)
+vcpkg_cmake_install()
+file(REMOVE_RECURSE
+    "${CURRENT_PACKAGES_DIR}/include/client/linux/data"
+    "${CURRENT_PACKAGES_DIR}/include/client/linux/sender")
+
+if("tools" IN_LIST FEATURES)
+    vcpkg_copy_tools(
+        TOOL_NAMES
+            microdump_stackwalk
+            minidump_dump
+            minidump_stackwalk
+            core2md
+            pid2md
+            dump_syms
+            minidump-2-core
+            minidump_upload
+            sym_upload
+            core_handler
+        AUTO_CLEAN)
+endif()
+
+vcpkg_cmake_config_fixup(PACKAGE_NAME unofficial-breakpad)
 
 vcpkg_copy_pdbs()
 
-file(INSTALL ${SOURCE_PATH}/LICENSE DESTINATION ${CURRENT_PACKAGES_DIR}/share/breakpad RENAME copyright)
+vcpkg_install_copyright(FILE_LIST "${SOURCE_PATH}/LICENSE")

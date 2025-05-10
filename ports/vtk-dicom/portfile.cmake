@@ -1,10 +1,8 @@
-include(vcpkg_common_functions)
-
 vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
     REPO dgobbi/vtk-dicom
-    REF ca27801fad6356c98ba19e760b9b4b8e9128f60e
-    SHA512 d4916fa385e6f26da0a5d7eb981497c9121ff4f67b4b03e518aa4974d2b0ef207168e939e5063e705c15f627ace56e39aca5f5891d333924cbc80c9277aa7dd2
+    REF cfeceadfa68d2cc3172632bd1fd3ea8a38b6c609 # v0.8.16
+    SHA512 0715ef91a1c585c9c819efd2bd6e2b73d3bff73a626b89f4877812fa6587e8379fb55ad99a376fb4d8dfa46c438e7a7052ba02ae61feb950cafb00c95df09b3f
     HEAD_REF master
 )
 
@@ -14,7 +12,6 @@ else()
     set(USE_GDCM                      OFF )
 endif()
 
-
 if(USE_GDCM)
     list(APPEND ADDITIONAL_OPTIONS
         -DUSE_GDCM=ON
@@ -22,21 +19,26 @@ if(USE_GDCM)
     )
 endif()
 
-vcpkg_configure_cmake(
-    SOURCE_PATH ${SOURCE_PATH}
-    PREFER_NINJA
+set(python_ver "")
+if(NOT VCPKG_TARGET_IS_WINDOWS)
+    set(python_ver "3")
+endif()
+
+vcpkg_cmake_configure(
+    SOURCE_PATH "${SOURCE_PATH}"
     OPTIONS
         -DBUILD_PROGRAMS=OFF
         -DBUILD_EXAMPLES=OFF
+        "-DPython3_EXECUTABLE:PATH=${CURRENT_HOST_INSTALLED_DIR}/tools/python3/python${python_ver}${VCPKG_TARGET_EXECUTABLE_SUFFIX}"
         ${ADDITIONAL_OPTIONS}
 )
 
-vcpkg_install_cmake()
+vcpkg_cmake_install()
+vcpkg_cmake_config_fixup(CONFIG_PATH lib/cmake/dicom-0.8 PACKAGE_NAME dicom)
 vcpkg_copy_pdbs()
 
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug/include)
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug/share)
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/include")
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/share")
 
-# Handle copyright
-file(COPY ${SOURCE_PATH}/Copyright.txt DESTINATION ${CURRENT_PACKAGES_DIR}/share/vtk-dicom)
-file(RENAME ${CURRENT_PACKAGES_DIR}/share/vtk-dicom/Copyright.txt ${CURRENT_PACKAGES_DIR}/share/vtk-dicom/copyright)
+vcpkg_install_copyright(FILE_LIST "${SOURCE_PATH}/Copyright.txt")
+

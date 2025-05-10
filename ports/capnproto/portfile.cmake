@@ -1,42 +1,45 @@
-if(VCPKG_CMAKE_SYSTEM_NAME STREQUAL WindowsStore)
-    message(FATAL_ERROR "Error: UWP build is not supported.")
-endif()
-
-if(DEFINED VCPKG_CMAKE_SYSTEM_NAME)
-    message(FATAL_ERROR "Error: CapnProto only build on Windows for now. See #5630 and #5635")
-endif()
-
-include(vcpkg_common_functions)
-
 vcpkg_check_linkage(ONLY_STATIC_LIBRARY)
 
 vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
     REPO capnproto/capnproto
-    REF v0.7.0
-    SHA512 a3ea278ded6a866759c0517d16b99bd38ffea1c163ce63a3604b752d8bdaafbc38a600de94afe12db35e7f7f06e29cc94c911dc2e0ecec6fe1185452df2a2bd3
+    REF "v${VERSION}"
+    SHA512 6992efffbfb375e2ce141e5e99bcab4c2ff2e1a71817d70dc71966633c18c7136e25220bf54da66928346d43697dbdf504e04a9d24cb00313a75b8d990cf53dd
     HEAD_REF master
-	PATCHES "${CMAKE_CURRENT_LIST_DIR}/0001-fix-capnpc-extension-handling-on-Windows.patch"
+    PATCHES
+        undef-KJ_USE_EPOLL-for-ANDROID_PLATFORM-23.patch
 )
 
-vcpkg_configure_cmake(SOURCE_PATH ${SOURCE_PATH})
+if(VCPKG_TARGET_IS_WINDOWS AND NOT VCPKG_TARGET_IS_MINGW)
+    # In ARM64 it fails without /bigobj
+    set(VCPKG_CXX_FLAGS "${VCPKG_CXX_FLAGS} /bigobj")
+    set(VCPKG_C_FLAGS "${VCPKG_C_FLAGS} /bigobj")
+endif()
 
-vcpkg_install_cmake()
+vcpkg_check_features(OUT_FEATURE_OPTIONS FEATURE_OPTIONS
+    FEATURES
+        "openssl" OPENSSL_FEATURE
+)
 
-vcpkg_fixup_cmake_targets(CONFIG_PATH "lib/cmake/CapnProto")
+vcpkg_cmake_configure(
+    SOURCE_PATH "${SOURCE_PATH}"
+    OPTIONS
+        -DBUILD_TESTING=OFF
+        "-DWITH_OPENSSL=${OPENSSL_FEATURE}"
+)
 
-file(MAKE_DIRECTORY "${CURRENT_PACKAGES_DIR}/tools")
-file(RENAME "${CURRENT_PACKAGES_DIR}/bin" "${CURRENT_PACKAGES_DIR}/tools/capnproto")
-vcpkg_copy_tool_dependencies(${CURRENT_PACKAGES_DIR}/tools/capnproto)
+vcpkg_cmake_install()
 
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/bin)
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug/bin)
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug/include)
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug/share)
+vcpkg_cmake_config_fixup(CONFIG_PATH lib/cmake/CapnProto)
+
+vcpkg_copy_tools(TOOL_NAMES capnp capnpc-c++ capnpc-capnp AUTO_CLEAN)
+
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/bin")
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/bin")
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/include")
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/share")
 
 # Handle copyright
-file(COPY ${SOURCE_PATH}/LICENSE DESTINATION ${CURRENT_PACKAGES_DIR}/share/capnproto)
-file(RENAME ${CURRENT_PACKAGES_DIR}/share/capnproto/LICENSE ${CURRENT_PACKAGES_DIR}/share/capnproto/copyright)
+file(INSTALL "${SOURCE_PATH}/LICENSE" DESTINATION "${CURRENT_PACKAGES_DIR}/share/${PORT}" RENAME copyright)
 
-# Disabled for now, see #5630 and #5635
-# vcpkg_test_cmake(PACKAGE_NAME CapnProto)
+vcpkg_fixup_pkgconfig()

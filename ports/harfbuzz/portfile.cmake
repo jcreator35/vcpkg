@@ -1,77 +1,154 @@
-include(vcpkg_common_functions)
-
 vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
     REPO harfbuzz/harfbuzz
-    REF 2.3.1
-    SHA512 c90f8a530bf49e91f5297f6a3c2f4be65f8907e3b41892cd5fbc1353ce7036aae7e182bfd0ea8cb32b0310cbe7284a3de8b6622e08db9736c3f0bba6cb1f9f01
+    REF ${VERSION}
+    SHA512 697205a571bb3d52d83598e8511e2e21e7cd15630aac32d8deb4354e462efda6a5ce46510cf4a1c18365dffe935cf2e4f1fda65d1779f17c9bb60c503315bf5c
     HEAD_REF master
     PATCHES
-        0001-fix-cmake-export.patch
-        0002-fix-uwp-build.patch
-        0003-remove-broken-test.patch
-        # This patch is required for propagating the full list of static dependencies from freetype
-        find-package-freetype-2.patch
-        # This patch is required for propagating the full list of dependencies from glib
-        glib-cmake.patch
+        fix-win32-build.patch
+        fix-build-ffmpeg-failed.patch
 )
 
-file(READ ${SOURCE_PATH}/CMakeLists.txt _contents)
-if("${_contents}" MATCHES "include \\(FindFreetype\\)")
-    message(FATAL_ERROR "Harfbuzz's cmake must not directly include() FindFreetype.")
-endif()
-if("${_contents}" MATCHES "find_library\\(GLIB_LIBRARIES")
-    message(FATAL_ERROR "Harfbuzz's cmake must not directly find_library() glib.")
-endif()
-
-SET(HB_HAVE_ICU "OFF")
 if("icu" IN_LIST FEATURES)
-    SET(HB_HAVE_ICU "ON")
+    list(APPEND FEATURE_OPTIONS -Dicu=enabled) # Enable ICU library unicode functions
+else()
+    list(APPEND FEATURE_OPTIONS -Dicu=disabled)
 endif()
-
-SET(HB_HAVE_GRAPHITE2 "OFF")
 if("graphite2" IN_LIST FEATURES)
-    SET(HB_HAVE_GRAPHITE2 "ON")
+    list(APPEND FEATURE_OPTIONS -Dgraphite=enabled) #Enable Graphite2 complementary shaper
+else()
+    list(APPEND FEATURE_OPTIONS -Dgraphite=disabled)
 endif()
-
-## Unicode callbacks
-
-# Builtin (UCDN)
-set(BUILTIN_UCDN OFF)
-if("ucdn" IN_LIST FEATURES)
-    set(BUILTIN_UCDN ON)
+if("coretext" IN_LIST FEATURES)
+    list(APPEND FEATURE_OPTIONS -Dcoretext=enabled) # Enable CoreText shaper backend on macOS
+else()
+    list(APPEND FEATURE_OPTIONS -Dcoretext=disabled)
 endif()
-
-# Glib
-set(HAVE_GLIB OFF)
+if("directwrite" IN_LIST FEATURES)
+    list(APPEND FEATURE_OPTIONS -Ddirectwrite=enabled) # Enable DirectWrite support on Windows
+else()
+    list(APPEND FEATURE_OPTIONS -Ddirectwrite=disabled)
+endif()
 if("glib" IN_LIST FEATURES)
-    set(HAVE_GLIB ON)
+    list(APPEND FEATURE_OPTIONS -Dglib=enabled) # Enable GLib unicode functions
+    list(APPEND FEATURE_OPTIONS -Dgobject=enabled) #Enable GObject bindings
+    list(APPEND FEATURE_OPTIONS -Dchafa=disabled)
+else()
+    list(APPEND FEATURE_OPTIONS -Dglib=disabled)
+    list(APPEND FEATURE_OPTIONS -Dgobject=disabled)
+endif()
+if("cairo" IN_LIST FEATURES)
+    list(APPEND FEATURE_OPTIONS -Dcairo=enabled) # Enable Cairo graphics library support
+else()
+    list(APPEND FEATURE_OPTIONS -Dcairo=disabled)
+endif()
+if("freetype" IN_LIST FEATURES)
+    list(APPEND FEATURE_OPTIONS -Dfreetype=enabled) #Enable freetype interop helpers
+else()
+    list(APPEND FEATURE_OPTIONS -Dfreetype=disabled)
+endif()
+if("experimental-api" IN_LIST FEATURES)
+    list(APPEND FEATURE_OPTIONS -Dexperimental_api=true) #Enable experimental api
+else()
+    list(APPEND FEATURE_OPTIONS -Dexperimental_api=false)
+endif()
+if("gdi" IN_LIST FEATURES)
+    list(APPEND FEATURE_OPTIONS -Dgdi=enabled) # enable gdi helpers and uniscribe shaper backend (windows only)
 endif()
 
-# At least one Unicode callback must be specified, or harfbuzz compilation fails
-if(NOT (BUILTIN_UCDN OR HAVE_GLIB))
-    message(FATAL_ERROR "Error: At least one Unicode callback must be specified (ucdn, glib).")
+if("introspection" IN_LIST FEATURES)
+    list(APPEND OPTIONS_DEBUG -Dgobject=enabled -Dintrospection=disabled)
+    list(APPEND OPTIONS_RELEASE -Dgobject=enabled -Dintrospection=enabled)
+    vcpkg_get_gobject_introspection_programs(PYTHON3 GIR_COMPILER GIR_SCANNER)
+else()
+    list(APPEND OPTIONS -Dintrospection=disabled)
 endif()
 
-vcpkg_configure_cmake(
-    SOURCE_PATH ${SOURCE_PATH}
-    PREFER_NINJA
+set(cxx_link_libraries "")
+if(VCPKG_LIBRARY_LINKAGE STREQUAL "static")
+    block(PROPAGATE cxx_link_libraries)
+        vcpkg_list(APPEND VCPKG_CMAKE_CONFIGURE_OPTIONS "-DVCPKG_DEFAULT_VARS_TO_CHECK=CMAKE_C_IMPLICIT_LINK_LIBRARIES;CMAKE_CXX_IMPLICIT_LINK_LIBRARIES")
+        vcpkg_cmake_get_vars(cmake_vars_file)
+        include("${cmake_vars_file}")
+        list(REMOVE_ITEM VCPKG_DETECTED_CMAKE_CXX_IMPLICIT_LINK_LIBRARIES ${VCPKG_DETECTED_CMAKE_C_IMPLICIT_LINK_LIBRARIES})
+        list(TRANSFORM VCPKG_DETECTED_CMAKE_CXX_IMPLICIT_LINK_LIBRARIES PREPEND "-l")
+        string(JOIN " " cxx_link_libraries ${VCPKG_DETECTED_CMAKE_CXX_IMPLICIT_LINK_LIBRARIES})
+    endblock()
+endif()
+
+vcpkg_configure_meson(
+    SOURCE_PATH "${SOURCE_PATH}"
     OPTIONS
-        -DHB_HAVE_FREETYPE=ON
-        -DHB_BUILTIN_UCDN=${BUILTIN_UCDN}
-        -DHB_HAVE_ICU=${HB_HAVE_ICU}
-        -DHB_HAVE_GLIB=${HAVE_GLIB}
-        -DHB_HAVE_GRAPHITE2=${HB_HAVE_GRAPHITE2}
-        -DHB_BUILD_TESTS=OFF
+        ${FEATURE_OPTIONS}
+        -Ddocs=disabled          # Generate documentation with gtk-doc
+        -Dtests=disabled
+        -Dbenchmark=disabled
+        ${OPTIONS}
     OPTIONS_DEBUG
-        -DSKIP_INSTALL_HEADERS=ON
+        ${OPTIONS_DEBUG}
+    OPTIONS_RELEASE
+        ${OPTIONS_RELEASE}
+    ADDITIONAL_BINARIES
+        glib-genmarshal='${CURRENT_HOST_INSTALLED_DIR}/tools/glib/glib-genmarshal'
+        glib-mkenums='${CURRENT_HOST_INSTALLED_DIR}/tools/glib/glib-mkenums'
+        g-ir-compiler='${GIR_COMPILER}'
+        g-ir-scanner='${GIR_SCANNER}'
 )
 
-vcpkg_install_cmake()
-vcpkg_fixup_cmake_targets(CONFIG_PATH share/harfbuzz TARGET_PATH share/harfbuzz)
+vcpkg_install_meson(ADD_BIN_TO_PATH)
 vcpkg_copy_pdbs()
+vcpkg_fixup_pkgconfig()
 
-# Handle copyright
-file(INSTALL ${SOURCE_PATH}/COPYING DESTINATION ${CURRENT_PACKAGES_DIR}/share/harfbuzz RENAME copyright)
+if(cxx_link_libraries)
+    vcpkg_replace_string("${CURRENT_PACKAGES_DIR}/lib/pkgconfig/harfbuzz.pc"
+        "(Libs:[^\r\n]*)"
+        "\\1 ${cxx_link_libraries}"
+        REGEX
+    )
+    if(NOT VCPKG_BUILD_TYPE)
+        vcpkg_replace_string("${CURRENT_PACKAGES_DIR}/debug/lib/pkgconfig/harfbuzz.pc"
+            "(Libs:[^\r\n]*)"
+            "\\1 ${cxx_link_libraries}"
+            REGEX
+        )
+    endif()
+endif()
 
-vcpkg_test_cmake(PACKAGE_NAME harfbuzz)
+if(VCPKG_TARGET_IS_WINDOWS)
+    file(GLOB pc_files 
+        "${CURRENT_PACKAGES_DIR}/debug/lib/pkgconfig/*.pc" 
+        "${CURRENT_PACKAGES_DIR}/lib/pkgconfig/*.pc"
+    )
+    foreach(pc_file IN LISTS pc_files)
+        vcpkg_replace_string("${pc_file}"
+            "\\$\\{prefix\}\\/lib\\/([a-zA-Z0-9\-]*)\\.lib" 
+            "-l\\1"
+            REGEX
+            IGNORE_UNCHANGED
+        )
+    endforeach()
+endif()
+
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/lib/cmake")
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/lib/cmake")
+configure_file("${CMAKE_CURRENT_LIST_DIR}/harfbuzzConfig.cmake.in"
+        "${CURRENT_PACKAGES_DIR}/share/${PORT}/harfbuzzConfig.cmake" @ONLY)
+
+vcpkg_list(SET TOOL_NAMES)
+if("glib" IN_LIST FEATURES)
+    vcpkg_list(APPEND TOOL_NAMES hb-subset hb-shape hb-ot-shape-closure hb-info)
+    if("cairo" IN_LIST FEATURES)
+        vcpkg_list(APPEND TOOL_NAMES hb-view)
+    endif()
+endif()
+if(TOOL_NAMES)
+    vcpkg_copy_tools(TOOL_NAMES ${TOOL_NAMES} AUTO_CLEAN)
+endif()
+
+if(VCPKG_LIBRARY_LINKAGE STREQUAL "static")
+    file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/bin" "${CURRENT_PACKAGES_DIR}/debug/bin")
+endif()
+
+vcpkg_install_copyright(FILE_LIST "${SOURCE_PATH}/COPYING")
+
+file(INSTALL "${CMAKE_CURRENT_LIST_DIR}/usage" DESTINATION "${CURRENT_PACKAGES_DIR}/share/${PORT}")

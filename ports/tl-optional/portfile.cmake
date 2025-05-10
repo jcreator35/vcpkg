@@ -1,15 +1,23 @@
-include(vcpkg_common_functions)
-
 vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
     REPO TartanLlama/optional
-    REF v0.5
-    SHA512 f4f72c1ba431737fb7b1b6468b7dbbb025f299775e0a3401993490a60d5999d31ccf1e48c0cd57836293a5534ea4749b9f1c8f65f896144204af3389a5e512f9
+    REF "v${VERSION}"
+    SHA512 3911F397440D4383721B92DE614DE1BEF5DB5C88371FA35F008B92F673F1E1EBF46E98FCFF4CD2D71E558C89537B9128AD549777197FD0390ED18A5BDFC5D6E0
     HEAD_REF master
 )
 
-# Install header file
-file(INSTALL ${SOURCE_PATH}/tl DESTINATION ${CURRENT_PACKAGES_DIR}/include)
+vcpkg_cmake_configure(
+    SOURCE_PATH "${SOURCE_PATH}"
+    OPTIONS
+        -DOPTIONAL_BUILD_TESTS=OFF
+)
+
+vcpkg_cmake_install()
+
+vcpkg_cmake_config_fixup(CONFIG_PATH share/cmake/tl-optional)
+
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug")
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/share/cmake")
 
 # Handle copyright
-file(INSTALL ${SOURCE_PATH}/COPYING DESTINATION ${CURRENT_PACKAGES_DIR}/share/tl-optional RENAME copyright)
+vcpkg_install_copyright(FILE_LIST "${SOURCE_PATH}/COPYING")

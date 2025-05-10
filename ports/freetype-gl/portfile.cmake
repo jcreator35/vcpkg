@@ -1,58 +1,44 @@
-include(vcpkg_common_functions)
-
 vcpkg_check_linkage(ONLY_STATIC_LIBRARY)
 
 vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
     REPO rougier/freetype-gl
-    REF a91a3dda326ceaf66b7279bf64ba07014d3f81b8
-    SHA512 8e04573dfb400e14e2c1d3a2cd851a66f8218ccfdaa4f701ed9369d7f040d7028582e72af9b236af42d9d3c6c128014670e8ae0261c6f4770affd1aea1454b1e
+    REF "v${VERSION}"
+    SHA512 0bdba3cf4e1460588a41b7f8e6d5ce46ecf437f2be605297a6a9676c3c2875fbc5cd3c4c36ab8902bb5827a1c1749c0e27cda36b98d1fef32576099ab4ed7e21
     HEAD_REF master
-    PATCHES 0001-Use-external-Glew-and-Freetype.patch
+    PATCHES
+        0001-Link-to-dependencies-also-for-static-build.patch
+        0002-Remove-duplicate-installs.patch
+        0003-Add-exports.patch
+        0004-Change-install-dir-for-pkgconfig.patch
+        0005-add-version.patch
 )
 
-# make sure that no "internal" libraries are used by removing them
-file(REMOVE_RECURSE ${SOURCE_PATH}/windows/freetype)
-file(REMOVE_RECURSE ${SOURCE_PATH}/windows/AntTweakBar)
-file(REMOVE_RECURSE ${SOURCE_PATH}/windows/glew)
-file(REMOVE ${SOURCE_PATH}/cmake/Modules/FindGLEW.cmake)
+vcpkg_check_features(
+    OUT_FEATURE_OPTIONS FEATURE_OPTIONS
+    FEATURES
+        "glew" freetype-gl_WITH_GLEW
+        "glad" freetype-gl_WITH_GLAD
+)
 
-vcpkg_configure_cmake(
-    SOURCE_PATH ${SOURCE_PATH}
-    PREFER_NINJA
+vcpkg_cmake_configure(
+    SOURCE_PATH "${SOURCE_PATH}"
     OPTIONS
         -Dfreetype-gl_BUILD_APIDOC=OFF
         -Dfreetype-gl_BUILD_DEMOS=OFF
         -Dfreetype-gl_BUILD_TESTS=OFF
         -Dfreetype-gl_BUILD_MAKEFONT=OFF
+        ${FEATURE_OPTIONS}
 )
 
-# We may soon install using a modified cmake process with install target
-
-# Although FreeType-GL uses CMake as its build system, the implementation
-# (*.cmake,CMakeLists.txt) doesn't provide for any type of installation.
-# Presumably, it has been used as-is, in-tree, without ever needing to install
-# itself within a larger system.
-vcpkg_build_cmake(LOGFILE_ROOT install)
-
-file(GLOB HEADER_FILES "${SOURCE_PATH}/*.h")
-file(INSTALL ${HEADER_FILES} DESTINATION ${CURRENT_PACKAGES_DIR}/include/freetype-gl)
-
-# LIB
-file(GLOB LIBS
-    "${CURRENT_BUILDTREES_DIR}/${TARGET_TRIPLET}-rel/*.lib"
-    "${CURRENT_BUILDTREES_DIR}/${TARGET_TRIPLET}-rel/Release/*.lib"
-    "${CURRENT_BUILDTREES_DIR}/${TARGET_TRIPLET}-rel/*/Release/*.lib"
-)
-file(GLOB DEBUG_LIBS
-    "${CURRENT_BUILDTREES_DIR}/${TARGET_TRIPLET}-dbg/*.lib"
-    "${CURRENT_BUILDTREES_DIR}/${TARGET_TRIPLET}-dbg/Debug/*.lib"
-    "${CURRENT_BUILDTREES_DIR}/${TARGET_TRIPLET}-dbg/*/Debug/*.lib"
-)
-file(INSTALL ${LIBS} DESTINATION ${CURRENT_PACKAGES_DIR}/lib)
-file(INSTALL ${DEBUG_LIBS} DESTINATION ${CURRENT_PACKAGES_DIR}/debug/lib)
+vcpkg_cmake_install()
+vcpkg_cmake_config_fixup()
 
 vcpkg_copy_pdbs()
 
-# Handle copyright
-file(INSTALL ${SOURCE_PATH}/LICENSE DESTINATION ${CURRENT_PACKAGES_DIR}/share/freetype-gl RENAME copyright)
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/include")
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/share")
+
+vcpkg_fixup_pkgconfig()
+
+vcpkg_install_copyright(FILE_LIST "${SOURCE_PATH}/LICENSE")

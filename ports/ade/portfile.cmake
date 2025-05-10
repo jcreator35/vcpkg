@@ -1,31 +1,23 @@
-include(vcpkg_common_functions)
-
 vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
     REPO opencv/ade
-    REF v0.1.1d
-    SHA512 c493cb57e59ba859ca0cbf5d48bae4233f22104dfb4a96864d07e9422bb700c27af2d53a602f2230d68b7bcc598920d0652c3d9fdf8fad94a7e5b4d21664a44e
+    REF "v${VERSION}"
+    SHA512 0a27e2e3278c34b76cc437823fdcf73d597cb4866fc6fd13059da41138b23e0eaea0326782a46b86967d9174d3aa67bfc8bdc281724cb7d0a8329387d56b9635
     HEAD_REF master
 )
 
-vcpkg_configure_cmake(
-  SOURCE_PATH ${SOURCE_PATH}
-  PREFER_NINJA
+vcpkg_cmake_configure(
+  SOURCE_PATH "${SOURCE_PATH}"
   OPTIONS_DEBUG
     -DCMAKE_DEBUG_POSTFIX=d
 )
 
-vcpkg_install_cmake()
+vcpkg_cmake_install()
 
-file(COPY ${CURRENT_PACKAGES_DIR}/debug/share/ade/adeTargets-debug.cmake DESTINATION ${CURRENT_PACKAGES_DIR}/share/ade/)
+vcpkg_cmake_config_fixup()
 
-file(READ ${CURRENT_PACKAGES_DIR}/share/ade/adeTargets-debug.cmake ADE_TARGET_DEBUG)
-string(REPLACE "/lib/"
-               "/debug/lib/" ADE_TARGET_DEBUG "${ADE_TARGET_DEBUG}")
-file(WRITE ${CURRENT_PACKAGES_DIR}/share/ade/adeTargets-debug.cmake "${ADE_TARGET_DEBUG}")
-
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug/include)
-file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug/share)
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/include")
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/share")
 
 # Handle copyright
-file(INSTALL ${SOURCE_PATH}/LICENSE DESTINATION ${CURRENT_PACKAGES_DIR}/share/ade RENAME copyright)
+vcpkg_install_copyright(FILE_LIST "${SOURCE_PATH}/LICENSE")
