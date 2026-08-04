@@ -4,7 +4,7 @@ vcpkg_download_distfile(SOURCE_ARCHIVE
         "https://download.gnome.org/sources/pango/${VERSION_MAJOR_MINOR}/pango-${VERSION}.tar.xz"
         "https://www.mirrorservice.org/sites/ftp.gnome.org/pub/GNOME/sources/${PORT}/${VERSION_MAJOR_MINOR}/${PORT}-${VERSION}.tar.xz"
     FILENAME "pango-${VERSION}.tar.xz"
-    SHA512 19471618a66b68e19786c458387f2bc8027ecbda5aaf29efcc025a99b3a74402765c6c4c6ea2997d8f1219ef7f1bea817e6ca55e494dff24780f5d3f2a6242a2
+    SHA512 5edf537653eee47aba5de53faac8d3906894069902fc4b301fc99daff5da3f35037ca14d75e21769ef0abcafb12a031e3ea8c02cafe967b678c11977f612485f
 )
 vcpkg_extract_source_archive(SOURCE_PATH
     ARCHIVE "${SOURCE_ARCHIVE}"

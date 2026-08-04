@@ -6,7 +6,7 @@ vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
     REPO ada-url/ada
     REF "v${VERSION}"
-    SHA512 728bf278fcac51a8ffdf5571cb486e789cd49511674c61e354c802bbfaeea64598fb22cd28ef4b02eacdd42c1c3437f40666ca8dba8097e0ecebbae1095de77f
+    SHA512 9ced1aedc22298a6393c35575f7d7b452a25b2249c19270987a17d9969c9b821dd9f6b165ee1dcf275741fc7de2e1d83fd8c4780bd87926b1f236ea3f9f7c965
     HEAD_REF main
     PATCHES
         no-cpm.patch

@@ -1,14 +1,22 @@
+
 vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
     REPO bbalouki/itchcpp
     REF "v${VERSION}"
-    SHA512 ce66984be3c70f83486e9b3f46227bff4d5456d73b58e70fe7f7d08c5fa5fe92a7222ee3c2ad81fda80a1c8e9f745f410d5ccc792bb40d52ef67422532355f65
+    SHA512 81ebc631a6a1d23b903a8726354f3abce1f76050521e031025b5cd7a9ebd055f0fbf84b8686978edc7aabbcaeb5458e2c621c17fa26147828f3a7b31f8d9eeef
     HEAD_REF main
+)
+
+vcpkg_check_features(OUT_FEATURE_OPTIONS FEATURE_OPTIONS
+    FEATURES
+        arrow ITCH_WITH_ARROW
+        python ITCH_BUILD_PYTHON
 )
 
 vcpkg_cmake_configure(
     SOURCE_PATH "${SOURCE_PATH}"
     OPTIONS
+        ${FEATURE_OPTIONS}
         -DITCH_BUILD_TESTS=OFF
         -DITCH_BUILD_BENCHMARKS=OFF
         -DITCH_BUILD_EXAMPLES=OFF

@@ -2,9 +2,11 @@ vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
     REPO FluidSynth/fluidsynth
     REF "v${VERSION}"
-    SHA512 0e897a1a3e1499150c26dc0ce4fc1fa4e5323cd84e0f1b6cdf305b4cfd3fd46cbefddf490241e8645a9bd291e485a830d109b1c7a83e13b816f0345839c4c36c
+    SHA512 0e0f78933c5cc119abc25f91f51df467e9a8efe7bca87b0439d13da42046e5b331bc800bdcba6b82c33fdfd32f821550d1f0d7262fdb15f525a219212ed3b5f2
     HEAD_REF master
-    PATCHES fix-gcem.patch
+    PATCHES
+        fix-gcem.patch
+        cxx-linkage-pkgconfig.diff
 )
 # Do not use or install FindSndFileLegacy.cmake and its deps
 file(REMOVE
@@ -53,7 +55,7 @@ endif()
 foreach(_option IN LISTS OPTIONS_TO_ENABLE)
     list(APPEND ENABLED_OPTIONS "-D${_option}:BOOL=ON")
 endforeach()
-    
+
 foreach(_option IN LISTS OPTIONS_TO_DISABLE IGNORED_OPTIONS)
     list(APPEND DISABLED_OPTIONS "-D${_option}:BOOL=OFF")
 endforeach()

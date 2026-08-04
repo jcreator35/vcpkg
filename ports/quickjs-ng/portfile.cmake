@@ -6,19 +6,26 @@ vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
     REPO quickjs-ng/quickjs
     REF v${VERSION}
-    SHA512 c8b1920bab954f5fa891956f330875478e5b17161d24f8b96db05108d61354dab0621f2a36c5ae421ffbfb9817d90c7a62fe1bd4f84ad149dd2d569c356a2788
+    SHA512 5268bf0d0e0360ab0cbaf7f9c69293a7c1c384c5e3f243dcbfd24290954cdce9f0c91a236da07b8c17ef95223ef65eb4d09ed503138388b24df3218a00ce8aa9
     HEAD_REF master
     PATCHES
-        pdb_name_conflict.patch
+        fix-manpage-install.patch # https://github.com/quickjs-ng/quickjs/pull/1632
+)
+
+vcpkg_check_features(OUT_FEATURE_OPTIONS FEATURE_OPTIONS
+    FEATURES
+        libc          QJS_BUILD_LIBC
 )
 
 vcpkg_cmake_configure(
     SOURCE_PATH "${SOURCE_PATH}"
+    OPTIONS
+        ${FEATURE_OPTIONS}
 )
 
 vcpkg_cmake_install()
 
-vcpkg_cmake_config_fixup(CONFIG_PATH lib/cmake/quickjs PACKAGE_NAME qjs)
+vcpkg_cmake_config_fixup(CONFIG_PATH lib/cmake/qjs PACKAGE_NAME qjs)
 
 vcpkg_copy_tools(
     TOOL_NAMES qjs qjsc
@@ -29,4 +36,7 @@ file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/include")
 file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/share")
 
 file(INSTALL "${CMAKE_CURRENT_LIST_DIR}/usage" DESTINATION "${CURRENT_PACKAGES_DIR}/share/${PORT}")
-vcpkg_install_copyright(FILE_LIST "${SOURCE_PATH}/LICENSE")
+vcpkg_install_copyright(FILE_LIST
+    "${SOURCE_PATH}/LICENSE"
+    "${SOURCE_PATH}/libunicode-table.h"
+)

@@ -1,12 +1,11 @@
-string(REPLACE "." "_" UNDERSCORES_VERSION "${VERSION}")
-
-vcpkg_from_gitlab(
-    GITLAB_URL https://gitlab.onelab.info
-    OUT_SOURCE_PATH SOURCE_PATH
-    REPO gmsh/gmsh
-    REF "${PORT}_${UNDERSCORES_VERSION}"
-    SHA512 45992b474b9e25aa681474740699dc5601abb1cdcbd4e6d3a0eca14a49cac576e085b3d2ffd11d39eab64aa2452c6a411975afabba668305650ec34b4b0040ff
-    HEAD_REF master
+vcpkg_download_distfile(ARCHIVE
+    URLS "https://gmsh.info/src/gmsh-${VERSION}-source.tgz"
+    FILENAME "gmsh-${VERSION}-source.tgz"
+    SHA512 9e05267e3d2bae54eeab21b384ab5cc85383e8040ed622ff859485fabd3dc9fc4b5a87d9d58acf3fc5573471d9c3c8e0831df4f44ae196d1a26ecbe9c613753c
+)
+vcpkg_extract_source_archive(
+    SOURCE_PATH
+    ARCHIVE "${ARCHIVE}"
     PATCHES
         installdirs.diff
         linking-and-naming.diff

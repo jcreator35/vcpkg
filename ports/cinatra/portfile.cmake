@@ -3,8 +3,10 @@ vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
     REPO qicosmos/cinatra
     REF ${VERSION}
-    SHA512 c5fcacab1627429fda5d158a12c975a1ce73e49d9fdae3812d581d82ff7d891e63960e7aae1f1bd2cf27259654240cf6f6e0fe3e388a316600b1a7558673422f
+    SHA512 dfc58ab01ea962f007e8922a4614b3017f4e6da03d5f79edf3b8ee2750a23803b20fc905ffb1600ee7d2440339b84543c61ddae58e13a587d357db8372baf510
     HEAD_REF master
+    PATCHES
+        fix-picohttpparser-include-guard.patch
 )
 
 # Install Cinatra’s headers

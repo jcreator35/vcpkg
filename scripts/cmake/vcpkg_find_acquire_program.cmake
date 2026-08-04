@@ -98,6 +98,25 @@ function(z_vcpkg_find_acquire_program_find_internal program)
     set(${program} "$CACHE{${program}}" PARENT_SCOPE)
 endfunction()
 
+function(z_use_vcpkg_fetch program)
+    cmake_parse_arguments(PARSE_ARGV 1 arg
+        ""
+        "FETCH_NAME"
+        ""
+    )
+    if(NOT arg_FETCH_NAME)
+      string(TOLOWER "${program}" arg_FETCH_NAME)
+    endif()
+    vcpkg_execute_in_download_mode(
+        COMMAND "$ENV{VCPKG_COMMAND}" fetch "${arg_FETCH_NAME}" --x-stderr-status
+        OUTPUT_VARIABLE ${program}
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        COMMAND_ERROR_IS_FATAL ANY
+    )
+    set("${program}" "${${program}}" CACHE STRING "" FORCE)
+    set(z_uses_vcpkg_fetch ON PARENT_SCOPE)
+endfunction()
+
 function(vcpkg_find_acquire_program program)
     if(${program})
         return()
@@ -123,6 +142,9 @@ function(vcpkg_find_acquire_program program)
     set(program_information "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/vcpkg_find_acquire_program(${program}).cmake")
     if(program MATCHES "^[A-Z0-9]+\$" AND EXISTS "${program_information}")
         include("${program_information}")
+        if(z_uses_vcpkg_fetch)
+          return()
+        endif()
     else()
         message(FATAL_ERROR "unknown tool ${program} -- unable to acquire.")
     endif()
@@ -168,6 +190,7 @@ function(vcpkg_find_acquire_program program)
             VERSION_COMMAND ${version_command}
         )
     endif()
+
     if(NOT ${program})
         if("${download_urls}" STREQUAL "" AND "${sourceforge_args}" STREQUAL "")
             set(example ".")
@@ -180,7 +203,7 @@ function(vcpkg_find_acquire_program program)
         endif()
 
         if("${sourceforge_args}" STREQUAL "")
-            vcpkg_download_distfile(archive_path
+            z_vcpkg_download_distfile(archive_path
                 URLS ${download_urls}
                 SHA512 "${download_sha512}"
                 FILENAME "${download_filename}"

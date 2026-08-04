@@ -2,7 +2,7 @@ vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
     REPO NVIDIA/cutlass
     REF "v${VERSION}"
-    SHA512 16ef4f68d819f50f4e3f250ddf41fc19105fa1155a86fc42970be0f84e32129cfb05f2730466e9491e84ca5faed595b3e5fbeee7c48a27da812e1927f842623e
+    SHA512 435bd838b1c89a5fec45c95ac45bec78b3dd641f93665b97a2cea3d4a9a82bddb9d7cd4139afe9d749e5c6e7195521f09aff4871981eddfa546d5bf9b2dc23a3
     HEAD_REF main
 )
 
@@ -15,6 +15,11 @@ list(APPEND FEATURE_OPTIONS
     "-DCMAKE_CUDA_COMPILER=${NVCC}"
     "-DCUDAToolkit_ROOT=${cuda_toolkit_root}"
 )
+
+list(APPEND CMAKE_MODULE_PATH "${CURRENT_INSTALLED_DIR}/share/cudnn")
+find_package(CUDNN REQUIRED)
+get_filename_component(CUDNN_LIBRARY_DIR "${CUDNN_LIBRARIES}" DIRECTORY)
+set(ENV{CUDNN_PATH} "${CUDNN_LIBRARY_DIR};${CUDNN_INCLUDE_DIRS}")
 
 
 vcpkg_cmake_configure(

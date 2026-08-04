@@ -6,10 +6,11 @@ vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
     REPO open-telemetry/opentelemetry-cpp
     REF "v${VERSION}"
-    SHA512 bde103a04ef70a1dccd247f5ab4bca4fff23d081d1ae758286fb1a62409310a399dd90ae29f188e552fb96112c95f501dac5fafab4edc1df924ca43f21d0f150
+    SHA512 b5d309670c0dbd3771f78b5d7d447eb98c19947b7c4a2e2b9a36e160396a60e502d80087a13d77635e9b8ab558c82a4142712dfc263f1ccb195f5e71c12b8428
     HEAD_REF main
     PATCHES
         fix-target_link.patch
+        fix-pkgconfig-dependencies.patch
 )
 
 vcpkg_check_features(OUT_FEATURE_OPTIONS FEATURE_OPTIONS
@@ -49,10 +50,10 @@ list(APPEND FEATURE_OPTIONS -DCMAKE_CXX_STANDARD=14)
 set(OPENTELEMETRY_CPP_EXTERNAL_COMPONENTS "OFF")
 
 if(WITH_GENEVA OR WITH_USER_EVENTS)
-    # Geneva and user events exporters from opentelemetry-cpp-contrib are tightly coupled with opentelemetry-cpp repo, 
+    # Geneva and user events exporters from opentelemetry-cpp-contrib are tightly coupled with opentelemetry-cpp repo,
     # so they should be ported as a feature under opentelemetry-cpp.
     clone_opentelemetry_cpp_contrib(CONTRIB_SOURCE_PATH)
-    
+
     if(WITH_GENEVA)
         set(OPENTELEMETRY_CPP_EXTERNAL_COMPONENTS "${CONTRIB_SOURCE_PATH}/exporters/geneva")
         if(VCPKG_TARGET_IS_WINDOWS)
@@ -89,9 +90,17 @@ vcpkg_cmake_configure(
 
 vcpkg_cmake_install()
 vcpkg_cmake_config_fixup(CONFIG_PATH "lib/cmake/${PORT}")
+vcpkg_fixup_pkgconfig(SKIP_CHECK)
 vcpkg_copy_pdbs()
 
 file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/include/opentelemetry/sdk/configuration")
 file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/include")
 file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/share")
-vcpkg_install_copyright(FILE_LIST "${SOURCE_PATH}/LICENSE")
+if(WITH_ETW)
+    list(APPEND LICENSE_FILES "${SOURCE_PATH}/exporters/etw/include/opentelemetry/exporters/etw/LICENSE")
+endif()
+vcpkg_install_copyright(
+    FILE_LIST
+        "${SOURCE_PATH}/LICENSE"
+        ${LICENSE_FILES}
+)
