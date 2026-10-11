@@ -6,10 +6,8 @@ vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
     REPO quickjs-ng/quickjs
     REF v${VERSION}
-    SHA512 5268bf0d0e0360ab0cbaf7f9c69293a7c1c384c5e3f243dcbfd24290954cdce9f0c91a236da07b8c17ef95223ef65eb4d09ed503138388b24df3218a00ce8aa9
+    SHA512 477b44986c2430c2e17c997c8bb04b1802bee03739ab8be1837771642c543ae4ac0a782598b9645f9959299ced3039e4fab2ad5c4458d76171675146a2e8bce4
     HEAD_REF master
-    PATCHES
-        fix-manpage-install.patch # https://github.com/quickjs-ng/quickjs/pull/1632
 )
 
 vcpkg_check_features(OUT_FEATURE_OPTIONS FEATURE_OPTIONS
@@ -35,7 +33,6 @@ vcpkg_copy_tools(
 file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/include")
 file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/share")
 
-file(INSTALL "${CMAKE_CURRENT_LIST_DIR}/usage" DESTINATION "${CURRENT_PACKAGES_DIR}/share/${PORT}")
 vcpkg_install_copyright(FILE_LIST
     "${SOURCE_PATH}/LICENSE"
     "${SOURCE_PATH}/libunicode-table.h"
